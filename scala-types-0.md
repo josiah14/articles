@@ -850,7 +850,7 @@ scala> def handleHttpResponse(httpResponse: Try[CloseableHttpResponse]): Try[Eit
      | }
 handleHttpResponse: (httpResponse: scala.util.Try[org.apache.http.client.methods.CloseableHttpResponse])scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]
 
-scala> val httpResponse: Try[Either[StatusLine, HttpEntity]] = handleHttpResponse(httpClient.execute(new HttpGet("http://www.google.com")))
+scala> val httpResponse: Try[Either[StatusLine, HttpEntity]] = handleHttpResponse(Try(httpClient.execute(new HttpGet("http://www.google.com"))))
 Dec 11, 2015 1:35:21 PM org.apache.http.impl.client.DefaultHttpClient tryConnect
 httpResponse: scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]] = Failure(java.net.NoRouteToHostException: No route to host)
 
@@ -859,10 +859,44 @@ scala> httpClient.getConnectionManager().shutdown()
 scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
 httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
 
-scala> val httpResponse: Try[Either[StatusLine, HttpEntity]] = handleHttpResponse(httpClient.execute(new HttpGet("http://localhost:3000")))
+scala> val httpResponse: Try[Either[StatusLine, HttpEntity]] = handleHttpResponse(Try(httpClient.execute(new HttpGet("http://localhost:3000"))))
 Dec 11, 2015 1:39:41 PM org.apache.http.client.protocol.ResponseProcessCookies processCookies
 httpResponse: scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]] = Success(Right(org.apache.http.conn.BasicManagedEntity@10a15612))
-
-scala> httpResponse.getConnectionManager().shutdown()
 ```
-So, you can see in the above, anytime I get a response back, excluding 500 range HTTP status codes, I send back some data from the HTTP response.  The difference here, from what you might be traditionally used to with Java and other languages that don't have something akin to the `Either` type, is that `Either` allows us to indicate a kind of non-critical error and even to provide a different kind of data/type back when these less successful situations occur.  However, the above example still demonstrates that there is still an appropriate time to use `Try` and pass back an exception for errors that one would not expect to occur.  In the above example, our attempt to hit "http://www.google.com" returns a `Failure` because I was behind a proxy which prevented the `httpClient` from being able to reach that address.  However, I had no problem talking to the web server I had running on "http://localhost:3000" at the time, so it returned a `Success[Right[HttpEntity]]` since that address on my web server returns a 200 status code upon success.  Had the "http://localhost:3000" route returned some other code that was outside of the 100-227 range, such as a 307 code for a Temporary Redirect, I would have gotten back a `Success[Left[StatusLine]]`, and I would have been able to recover the relevant information about why I got that code since the `StatusLine` type contains the "reason" sent with HTTP responses for why a certain error code was received, as well as the status code itself and even the protocol version information.  Had the response been a status code in the 500 range, I would have gotten back a `Failure[Exception]` with a message containing the status code and reason provided from the server for why the request failed.
+So, you can see in the above, anytime I get a response back, excluding 500 range HTTP status codes, I send back some data from the HTTP response.  The difference here, from what you might be traditionally used to with Java and other languages that don't have something akin to the `Either` type, is that `Either` allows us to indicate a kind of non-critical error and even to provide a different kind of data/type back when these less successful situations occur.  However, the above example still demonstrates that there is still an appropriate time to use `Try` and pass back an exception for errors that one would not expect to occur.  My attempt to hit "http://www.google.com" returns a `Failure` because I was behind a proxy which prevented the `httpClient` from being able to reach that address.  However, I had no problem talking to the web server I had running on "http://localhost:3000" at the time, so it returned a `Success[Right[HttpEntity]]` since that address on my web server returns a 200 status code upon success.  Had the "http://localhost:3000" route returned some other code that was outside of the 100-227 range, such as a 307 code for a Temporary Redirect, I would have gotten back a `Success[Left[StatusLine]]`, and I would have been able to recover the relevant information about why I got that code since the `StatusLine` type contains the "reason" sent with HTTP responses for why a certain error code was received, as well as the status code itself and even the protocol version information.  Had the response been a status code in the 500 range, I would have gotten back a `Failure[Exception]` with a message containing the status code and reason provided from the server for why the request failed.
+
+Now, as you read this, you might think that this is all very interesting, but what happens when I want to get the value out of my `Either`?  I can't just `get` it like I can for `Option` and `Try` because it's not obvious that `Right` is necessarily the only truly successful value.  `Either` could be used to return a disjoint union where both possible response types are equally successful value. So, let's look at some examples for how to get the value out of our `Either`.
+
+The most obvious way to get our `Either` values is to just pattern match on the `Either` type.  Building on the last code sample, let's get the value out of our `httpResponse` and do something with it. 
+```scala
+scala> val response = httpResponse.get
+response: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@3b2de156)
+
+scala> response match {
+     |   case Right(httpEntity) => println(httpEntity.getContent().read())
+     |   case Left(statusLine) => println(statusLine.getReasonPhrase())
+     | }
+60
+```
+This is a pretty silly example, but it shows that we can actually use pattern matching to do something with the value held inside of the `response` `Either` instance we have.  All the above does is print the first byte of data in the `httpEntity`'s content if it's a `Right`, and print the HTTP status reason if it's a `Left`.
+
+
+However, what if we already knew it was a `Right`, or a `Left`, or were expecting it to be one or other do the degree that we would want an `Exception` to be thrown if it wasn't the `Either` value we were expecting?  Well, we can 'project' any `Either` instance as a `left` projection or a `right` projection.  They both work the same.  If I project my `Either` as a `Right` and it is a `Right`, then if I call `get` on that projection, I get back the value inside of the `Right`.  However, if it's a `Left`, it will throw an `Exception`.  The same goes for the `Left` projection, except `get` throws an `Exception` if it's a `Right`, and the value inside of the `Left` otherwise.
+
+Let's look at an example.  Building on the previous code samples we have for `Either`, let's use projections to get the value out of our `response`, which is an instance of `Either`.
+```scala
+scala> response
+res21: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@3b2de156)
+
+scala> response.left.get
+java.util.NoSuchElementException: Either.left.value on Right
+  at scala.util.Either$LeftProjection.get(Either.scala:289)
+  ... 43 elided
+
+scala> response.right.get
+res23: org.apache.http.HttpEntity = org.apache.http.conn.BasicManagedEntity@3b2de156
+
+scala> response.right.get.getContent().read()
+res24: Int = 33
+```
+In this example, you can see that `response` is a `Right[HttpEntity]`.  Therefore, when we project our response as a `Left` and try to `get` its value, it throws a `NoSuchElementException` and then tries to tell us that we can't get the value in `response` as a `Left` projection because `response` is actually `Right`.  Given this, I then said, "Oh, in that case, let me project `response` as a `Right` and try to get the value out of it that way!".  So, when I call `response.right.get`, I'm able to get my `HttpEntity` back.  And then, of course, I can do whatever I want with that `HttpEntity` that was returned to me.  Here, I just do the same thing as before and `read` out the next byte of content in my `HttpEntity`.
