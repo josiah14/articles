@@ -118,19 +118,6 @@ res0: List[Int] = List(1, 2, 3)
 ```
 You *could* do the above using `map`, but it's less efficient.  If you think about it a minute, you might understand the most obvious reason why: `map` will alway create a new result object, in this case, a `List`, whereas `foreach` never creates a result, it just performs an operation and then returns execution back to the caller. This means that when we use `foreach` the GC doesn't have to worry about cleaning up an unused object and we also save some memory since we never have to allocate those additional resources for instantiating a new `List` object.
 
-#### `contains`
-`contains` is just a simple function for checking whether a `Collection` such as a `List` `contains` a particular value.  If the `Collection` `contains` the value passed in as it's argument, `contains` returns `true`, otherwise, it returns `false`.
-
-E.g.
-```scala
-scala> val xs: List[Int] = List(1, 2, 3)
-scala> xs.contains(1)
-res0: Boolean = true
-
-scala> xs.contains(5)
-res1: Boolean = false
-```
-
 #### `exists`
 `exists` is like `contains`, except that it takes a lambda function that returns a `Boolean` to check against the list instead of a concrete value.  This allows us to check to see whether a `Collection` contains at least one value that satisfies a particular property, rather than needing to check for the existence of any possible value we might want.  `exists` returns `true` if the predicate returns `true` for at least one value in the `List`, and `false` otherwise.
 
@@ -155,22 +142,6 @@ res0: Boolean = false
 
 scala> x.exists({ case _: Int => true; case _ => false })
 res1: Boolean = true
-```
-
-#### `head`
-`head` returns the first element of the `List` or `Collection`, or throw a `NoSuchElementException` if you happen to call `head` on an empty `Collection` (such as a `List`).
-
-```scala
-scala> val x: List[Int] = List(1, 2)
-scala> x.head
-res0: Int = 1
-
-scala> val y: List[Int] = List()
-scala> y.head
-java.util.NoSuchElementException: head of empty list
-  at scala.collection.immutable.Nil$.head(List.scala:420)
-  at scala.collection.immutable.Nil$.head(List.scala:417)
-  ... 43 elided
 ```
 
 #### `filter`
@@ -902,3 +873,149 @@ res24: Int = 33
 In this example, you can see that `response` is a `Right[HttpEntity]`.  Therefore, when we project our response as a `Left` and try to `get` its value, it throws a `NoSuchElementException` and then tries to tell us that we can't get the value in `response` as a `Left` projection because `response` is actually `Right`.  Given this, I then said, "Oh, in that case, let me project `response` as a `Right` and try to get the value out of it that way!".  So, when I call `response.right.get`, I'm able to get my `HttpEntity` back.  And then, of course, I can do whatever I want with that `HttpEntity` that was returned to me.  Here, I just do the same thing as before and `read` out the next byte of content in my `HttpEntity`.
 
 Most of the time with `Either`, pattern matching on the value will be the simplest way to work with your `Either` content because `Either` is most often used as a way to delegate execution to one function or the other based on the kind of data you got back.  However, projections are there for the rare instance where you are only interested in handling one of the `Either` values, and want to just ignore the content or throw an `Exception` in the event that you got the other `Either` value back.  However, be aware that if you are using `Either` to determine when you should throw `Exceptions`, you probably should be using `Try`, instead.
+
+### Higher-kinded Types as Collections
+Knowing the basics of the previous section which introduces `Option`, `Try`, and `Either` already gives us a lot of power.  However, there is still even more that we can do with these types than simply pattern match on them and used them as a type-safe way of ensuring proper error handling is written into the software.  As it turns out, all of those functions that were introduced way back in the Prerequisites > Collections section are also part of `Option`, `Try`, and `Either`.  These functions provide a way to interact with the value inside one of these three types without requiring the programmer to extract the value out of the context of the type.  There is some value in this because it allows the programmer to work with the type before handling the error path, or the unhappy path.  This way, the sad path and the happy path can be defined in full, but also separately from each other, so that it's easy to see what the purpose of the code is without all of the error handling noise cluttering up your happy path, and without the happy path obscuring your error handling strategy.  This might not make much sense to you, yet, but I'm confident that, as we go through the various collections functions and how to use them with these higher-kinded types, you will see how working with these types can simplify your code and make it easier to decouple your error paths from the rest of your code.
+
+To introduce the collections functions and how they are used in the context of each type, my intention is to start with (what I perceive to be) the simpler functions, and then dig into the more complex (and often more handy) functions at the end, closing with comprehensions.  I'll also introduce using each function starting with the easiest type to work with, `Option`, then move on to `Try`, and then finish with `Either` (because `Either` is a sort of redheaded step-child among the three).
+
+#### `map`
+If you think of `map` in terms of a `List`, it applies a mutation (a function that doesn't cause side-effects) to all the items in the `List` without removing them from the `List` context so that the result is a new `List` of values representing the result of the mutation on each `List` item.  Map behaves just the same with our higher-kinded data types.  It will apply some mutation to the value wrapped by the context of our type (whether it's `Option`, `Try`, or `Either`), and give us back the result without taking us out of that context.  Let's make this clearer through some examples of using `map` on each of the types.
+
+##### Option
+`Option` is what I think to be the most straightforward of all the other types we are looking at in this article.  You can think of `Option` as a special kind of `List` that holds at most one value, but might also be `None`.  If you `map` over an instance of `None`, you will just get a `None` back.  If you `map` over an instance of `Some`, `map` will apply the lambda argument (a.k.a. mutation) you supply it with to the value inside of the `Some` and give you back a new `Some` which holds the result of applying the mutation.  The advantage to `Option` being, as was already mentioned, that you are required to provide a case for the `None` possibility or else explicitly choose to ignore the type and try to get the value anyway (the latter being generally discouraged).
+
+Let's `get` a value out of Redis and mutate its value to create a silly "hello world" application.
+```scala
+scala> import com.redis._
+import com.redis._
+
+scala> val redisClient: RedisClient = new RedisClient("localhost", 6379)
+redisClient: com.redis.RedisClient = localhost:6379
+
+scala> redisClient.set("hello-world-key", "Hello")
+res59: Boolean = true
+
+scala> redisClient.get("hello-world-key")
+res60: Option[String] = Some(Hello)
+
+scala> val hello = redisClient.get("hello-world-key")
+hello: Option[String] = Some(Hello)
+
+scala> val helloWorld = hello.map(_ + ", world!")
+helloWorld: Option[String] = Some(Hello, world!)
+
+scala> helloWorld match {
+     | case Some(statement) => println(statement)
+     | case None => System.err.println("The key, hello-world-key, did not contain a value upon access")
+     | }
+Hello, world!
+
+scala> val oops = redisClient.get("not-a-key")
+oops: Option[String] = None
+
+scala> val oopsWorld = oops.map(_ + ", world!")
+oopsWorld: Option[String] = None
+
+scala> oopsWorld match {
+     | case Some(statement) => println(statement)
+     | case None => System.err.println("The key, not-a-key, did not contain a value upon access")
+     | }
+The key, not-a-key, did not contain a value upon access
+```
+If you are clever, you may recognize the advantage to using `map` as we did above.  `map` allows us to work with the value in our `Option` under the assumption that it's a successful`Some` value, and then check separately when we are done whether it's a `None` and handle that case on its own.  The following code sample from the REPL makes it more obvious how this is an advantage. 
+
+```scala
+scala> import com.redis._
+import com.redis._
+
+scala> val redisClient: redisClient = new RedisClient("localhost", 6379)
+res75: com.redis.RedisClient = localhost:6379
+
+scala> redisClient.rpush("queue", 1,2,3,4,5,6)
+res79: Option[Long] = Some(6)
+
+scala> val count: Option[Long] = redisClient.rpush("queue", 1, 2, 3, 4, 5, 6)
+count: Option[Long] = Some(6)
+
+scala> val items: List[Option[Int]] = count match {
+     |   case Some(n) => (1 to n.toInt map { _ => redisClient.lpop("queue").map(num => num.toInt) }).toList
+     |   case None => List()
+     | }
+items: List[Option[Int]] = List(Some(1), Some(2), Some(3), Some(4), Some(5), Some(6))
+
+scala> val items: List[Option[Int]] = count match {
+     |   case Some(n) => (1 to n.toInt map { _ => redisClient.lpop("queue").map(num => num.toInt) }).toList
+     |   case None => List()
+     | }
+items: List[Option[Int]] = List(None, None, None, None, None, None)
+
+scala> val count0: Option[Long] = None
+count0: Option[Long] = None
+
+scala> val items0: List[Option[Int]] = count0 match {
+     |   case Some(n) => (1 to n.toInt map { _ => redisClient.lpop("queue").map(num => num.toInt) }).toList
+     |   case None => List()
+     | }
+items0: List[Option[Int]] = List()
+
+scala> items
+res89: List[Option[Int]] = List(None, None, None, None, None, None)
+
+scala> items.reduce((optnA, optnB) => (optnA, optnB) match {
+     |   case (Some(a), Some(b)) => Some(a + b)
+     |   case _ => None
+     | })
+res91: Option[Int] = None
+
+scala> redisClient.rpush("queue", 1,2,3,4,5,6)
+res92: Option[Long] = Some(6)
+
+scala> val items: List[Option[Int]] = count match {
+     |   case Some(n) => (1 to n.toInt map { _ => redisClient.lpop("queue").map(num => num.toInt) }).toList
+     |   case None => List()
+     | }
+items: List[Option[Int]] = List(Some(1), Some(2), Some(3), Some(4), Some(5), Some(6))
+
+scala> items.reduce((optnA, optnB) => (optnA, optnB) match {
+     |   case (Some(a), Some(b)) => Some(a + b)
+     |   case _ => None
+     | })
+res94: Option[Int] = Some(21)
+
+scala> None :: items
+res95: List[Option[Int]] = List(None, Some(1), Some(2), Some(3), Some(4), Some(5), Some(6))
+
+scala> (None :: items).reduce((optnA, optnB) => (optnA, optnB) match {
+     |   case (Some(a), Some(b)) => Some(a + b)
+     |   case _ => None
+     | })
+res96: Option[Int] = None
+```
+You can see in the above code sample how we can just use `map` to convert our values returned from Redis from a `String` to an `Int` without leaving the `Option` context.  If Redis returned nothing, it's no big deal, because `map` just behaves like a noop in that case and leaves the `None` value as is.  We then deal with potential `None` values from Redis later in the `reduce` function by saying, hey, if I encounter a `None`, the value of the entire computation is `None`.  However, I could have also written my reduce as follows, and it would have been equally valid, from a theoretical standpoint.  Which implementation you would want depends on your particular needs at the time.
+
+```scala
+scala> (None :: items).reduce((optnA, optnB) => (optnA, optnB) match {
+     |   case (Some(a), Some(b)) => Some(a + b)
+     |   case (None, some @ Some(b)) => some
+     |   case (some @ Some(a), None) => some
+     |   case (None, None) => None
+     | })
+res98: Option[Int] = Some(21)
+```
+So, hopefully the above examples help you see the value of using `map` when it isn't necessarily advantageous, yet, to handle our `None` value(s) for our `Option`(s).
+
+##### Try
+For `Try`, `map` works essentially the same way as it does for `Option`, except that it will operates on `Success` values instead of `Some` values.  The idea is the same; if we are not ready to evaluate for exceptions, and just want to continue under the assumption that our `Try`s are `Success`es, we can use `map` and evaluate the results later.
+#### `flatten`
+#### `flatMap`
+#### `foreach`
+#### `exists`
+#### `filter`
+#### `forall`
+#### `zip`
+#### `unzip`
+#### `nonEmpty`
+#### `orElse`
+#### `getOrElse`
+#### Comprehensions
