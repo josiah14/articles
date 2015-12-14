@@ -1007,6 +1007,62 @@ So, hopefully the above examples help you see the value of using `map` when it i
 
 ##### Try
 For `Try`, `map` works essentially the same way as it does for `Option`, except that it will operates on `Success` values instead of `Some` values.  The idea is the same; if we are not ready to evaluate for exceptions, and just want to continue under the assumption that our `Try`s are `Success`es, we can use `map` and evaluate the results later.
+
+Let's look at some examples of working with Redis in a way that handles potential `Exception`s.
+
+```scala
+scala> import scala.util.{Try, Success, Failure}
+import scala.util.{Try, Success, Failure}
+
+scala> import com.redis._
+import com.redis._
+
+scala> val redisClient: RedisClient = new RedisClient("localhost", 6379)
+redisClient: com.redis.RedisClient = localhost:6379
+
+scala> val count: Try[Option[Long]] = Try(redisClient.rpush("queue", 1,2,3,4,5,6))
+count: scala.util.Try[Option[Long]] = Success(Some(6))
+
+scala> val items: Try[List[Option[Int]]] = count.map(c => c match {
+     |   case Some(n) => (1 to n.toInt map { _ => redisClient.lpop("queue").map(num => num.toInt) }).toList
+     |   case None => List()
+     | })
+items: scala.util.Try[List[Option[Int]]] = Success(List(Some(1), Some(2), Some(3), Some(4), Some(5), Some(6)))
+
+scala> val result: Try[Option[Int]] = items.map(None :: _).map(optns => optns.reduce((optnA, optnB) => (optnA, optnB) match {
+     |   case (Some(a), Some(b)) => Some(a + b)
+     |   case (None, some @ Some(b)) => some
+     |   case (some @ Some(a), None) => some
+     |   case _ => None
+     | }))
+result: scala.util.Try[Option[Int]] = Success(Some(21))
+
+scala> result.map({
+     |   case Some(n) => println(n)
+     |   case None => println("All the Redis keys were empty.  Might indicate an issue, might not")
+     | }).recover({
+     |   case e: Exception => System.err.println(e)
+     | })
+21
+res102: scala.util.Try[Unit] = Success(())
+```
+You can see from the above that, by mapping over the `Try` instances; `count`, `items`, and `result`; I was able to defer evaluation of the `Failure` case until the end.
+
+You may note that I used `recover` here.  `recover` is a special function provided by `Try` that allows you to handle any `Failure` values, but then always return a `Success`.  It would also be good, here, to mention that using `map` to handle the `Success` cases allowed me to then create a separate `recover` block to handle the `Failure` cases.  When working with simpler workflows, I like to end my sequence with `recover` so that it's obvious where my `Exception` handling is occurring, but it's also a good tool for when you actually want to *`recover`* from an `Exception` and proceed as if the operation had generated a non-critical error.  You may find yourself using this more often when interfacing with Java APIs that overuse `Exception`s, as with Scala, most instances of errors you would want to `recover` from would be handled better by the `Either` type.  You could rewrite the above code sample as below, and it would be equally (or more) valid.
+
+```scala
+scala> result match {
+     |   case Success(optn) => optn match {
+     |     case Some(n) => println(n)
+     |     case None => println("All the Redis keys were empty.  Might indicate an issue, might not")
+     |   }
+     |   case Failure(e) => System.err.println(e)
+     | }
+21
+```
+Notice in the above code sample, however, that the `match` function does not return a `Success` value, it just returns absolutely nothing (denoted in Scala by the `Unit` type).
+
+##### Either
 #### `flatten`
 #### `flatMap`
 #### `foreach`
