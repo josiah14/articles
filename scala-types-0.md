@@ -67,23 +67,8 @@ res1: List[Int] = List(1, 2, 4)
 ```
 It's important to note that the `map` function is intended for mathematically pure operations.  This means that it should not be used for operations that may create side effects, such as writing to disk, printing to the screen, or mutating a value in memory.  For those sorts of operations, you should, rather, use the `foreach` method, which will be discussed later.
 
-#### `flatMap`
-`flatMap` is like `map`, except it `flatten`s out the result `List` in the event that this list is multidimensional (a.k.a the List contains other Lists).
-
-E.g. *(in the Scala REPL)*
-```scala
-scala> val xs: List[Int] = List(1, 2, 4)
-scala> xs.flatMap(n => List(n + 1))
-res0: List[Int] = List(2, 3, 5)
-
-scala> xs
-res1: List[Int] = List(1, 2, 4)
-```
-
-As with `map`, `flatMap` should not be used for operations which may cause side effects.
-
 #### `flatten`
-`flatten` is pretty simple once you understand `flatMap`.  As you might guess, all it does is take a multidimensional list and make it one dimensional.
+`flatten` is pretty simple.  As you might guess, all it does is take a multidimensional list and decrease its dimensionality by one (so if you had a `List[List[List[Intt]]]`, calling flatten on it would give you a `List[List[Int]]` back.)
 
 E.g. *(in the Scala REPL)*
 ```scala
@@ -98,6 +83,21 @@ res1: List[List[Int]] = List(List(1, 2, 3), List(4, 5, 6), List(7, 8, 9))
 **Exercise**
 
 implement `flatMap` using `map` and `flatten`.
+
+#### `flatMap`
+`flatMap` is just like calling `flatten` after `map` - it `flatten`s out the result `List` in the event that this list is multidimensional (a.k.a the List contains other Lists).
+
+E.g. *(in the Scala REPL)*
+```scala
+scala> val xs: List[Int] = List(1, 2, 4)
+scala> xs.flatMap(n => List(n + 1))
+res0: List[Int] = List(2, 3, 5)
+
+scala> xs
+res1: List[Int] = List(1, 2, 4)
+```
+
+As with `map`, `flatMap` should not be used for operations which may cause side effects.
 
 #### `foreach`
 `foreach` works exactly like `map` except it does **NOT** return a new `List`.  The reason the result `List` is not returned is because this function is intended for operations that cause side effects.  In other words, you use `foreach` when your intention is not to alter the `List` for a new result, but to do something stateful with the values of the list, such as printing them to the console, displaying them to a GUI, saving them to a database, writing them to a file, etc.  When you want to use the current `List` to generate a new result from some calculation, use `map`.
@@ -568,6 +568,8 @@ By now, you're probably seeing the pattern and getting the hang of this.  I'll l
 
 **Exercise:** *Write an implementation for `makeOption` that doesn't return any Option values nested in Option values.  So, `makeOption(Some(Some(Some(10))))` should return `Some(10)`, and `makeOption(Some(Some(None)))` should return `None`, for example.*
 
+*Hint for the above: you'll probably had to write an iterative or a recursive solution to complete the above exercise.  Notice anything particularly poor about the above code, and, likely, the code you wrote?  You lose most (or all) of your type information.  Keep in mind, this was an exercise to get you used to thinking and reasoning about abstract types, especially when they may be more complex and potentially nested.  But you typically wouldn't write this sort of code in the real world.*
+
 ##### When to Use Option and its Advantage Over Null
 `Option` should be used when you have operations that might not return a value, but where you don't care to hold onto the exception or error message if one is produced. You can think of `Option` as a way of replacing `null` that is safer, because if you don't handle the `None` case, the Scala compiler will yell at you and force you to handle that case before letting you compile your code.  What this means is, if you use `Option` throughout your Scala code, you should rarely to never see a `NullPointerException` thrown during runtime.  All those years of wasted time and headaches on `NullPointerException`s gone!  This is what every Java programmer used to only dream about, now a dream come true.
 
@@ -886,6 +888,7 @@ If you think of `map` in terms of a `List`, it applies a mutation (a function th
 `Option` is what I think to be the most straightforward of all the other types we are looking at in this article.  You can think of `Option` as a special kind of `List` that holds at most one value, but might also be `None`.  If you `map` over an instance of `None`, you will just get a `None` back.  If you `map` over an instance of `Some`, `map` will apply the lambda argument (a.k.a. mutation) you supply it with to the value inside of the `Some` and give you back a new `Some` which holds the result of applying the mutation.  The advantage to `Option` being, as was already mentioned, that you are required to provide a case for the `None` possibility or else explicitly choose to ignore the type and try to get the value anyway (the latter being generally discouraged).
 
 Let's `get` a value out of Redis and mutate its value to create a silly "hello world" application.
+
 ```scala
 scala> import com.redis._
 import com.redis._
@@ -923,6 +926,7 @@ scala> oopsWorld match {
      | }
 The key, not-a-key, did not contain a value upon access
 ```
+
 If you are clever, you may recognize the advantage to using `map` as we did above.  `map` allows us to work with the value in our `Option` under the assumption that it's a successful`Some` value, and then check separately when we are done whether it's a `None` and handle that case on its own.  The following code sample from the REPL makes it more obvious how this is an advantage. 
 
 ```scala
@@ -992,6 +996,7 @@ scala> (None :: items).reduce((optnA, optnB) => (optnA, optnB) match {
      | })
 res96: Option[Int] = None
 ```
+
 You can see in the above code sample how we can just use `map` to convert our values returned from Redis from a `String` to an `Int` without leaving the `Option` context.  If Redis returned nothing, it's no big deal, because `map` just behaves like a noop in that case and leaves the `None` value as is.  We then deal with potential `None` values from Redis later in the `reduce` function by saying, hey, if I encounter a `None`, the value of the entire computation is `None`.  However, I could have also written my reduce as follows, and it would have been equally valid, from a theoretical standpoint.  Which implementation you would want depends on your particular needs at the time.
 
 ```scala
@@ -1003,6 +1008,7 @@ scala> (None :: items).reduce((optnA, optnB) => (optnA, optnB) match {
      | })
 res98: Option[Int] = Some(21)
 ```
+
 So, hopefully the above examples help you see the value of using `map` when it isn't necessarily advantageous, yet, to handle our `None` value(s) for our `Option`(s).
 
 ##### Try
@@ -1089,6 +1095,84 @@ res23: Product with Serializable with scala.util.Either[String,Int] = Right(5)
 ```
 
 #### `flatten`
+Flatten for abstract datatypes works the same as it does for `List`s.  If I have nested instances of the same datatype, `flatten` will resolve the nesting so that I only have to deal with a single wrapping of the context of whatever type I'm working in.
+
+##### `Option`
+Let's start with the `Option` type, again.  If you have a `Some(Some(value))`, typically, that nested `Some` isn't giving any additional contextual information about the type that's of any real use to you.  Even if that value is a `None`, for the operation you want to perform, you probably only care that at the end of the nesting, there is a `None` there to help you delegate to the program what should be done next.
+
+When using our scala-redis library, this could happen if we `get` a value from a Redis key and then use it to `get` a value from a different Redis key.
+
+For example:
+
+```scala
+scala> import com.redis._
+import com.redis._
+
+scala> val redisClient: RedisClient = new RedisClient("localhost", 6379)
+redisClient: com.redis.RedisClient = localhost:6379
+
+scala> redisClient.set("hello-key", "world-key")
+res0: Boolean = true
+
+scala> redisClient.set("world-key", "hello world!")
+res1: Boolean = true
+
+scala> val worldKey: Option[String] = redisClient.get("hello-key")
+worldKey: Option[String] = Some(world-key)
+
+scala> val helloWorldValue: Option[Option[String]] = worldKey.map(redisClient.get(_))
+helloWorldValue: Option[Option[String]] = Some(Some(hello world!))
+
+scala> val flatHelloWorldValue: Option[String] = helloWorldValue.flatten
+flatHelloWorldValue: Option[String] = Some(hello world!)
+
+scala>
+
+scala> val none: Option[String] = redisClient.get("not-a-key")
+none: Option[String] = None
+
+scala> val stillNone: Option[Option[String]] = none.map(redisClient.get(_))
+stillNone: Option[Option[String]] = None
+
+scala> stillNone.flatten
+res2: Option[String] = None
+
+scala>
+
+scala> redisClient.del("world-key")
+res7: Option[Long] = Some(1)
+
+scala> redisClient.get("world-key")
+res8: Option[String] = None
+
+scala> val nestedNone: Option[Option[String]] = worldKey.map(redisClient.get(_))
+nestedNone: Option[Option[String]] = Some(None)
+
+scala> nestedNone.flatten
+res9: Option[String] = None
+
+scala> flatHelloWorldValue.foreach(println)
+hello world!
+
+scala> helloWorldValue.foreach(println)
+Some(hello world!)
+
+scala> helloWorldValue.foreach(_.foreach(println))
+hello world!
+
+scala> nestedNone.foreach(println)
+None
+
+scala> nestedNone.flatten.foreach(println)
+
+scala>
+```
+
+The above clearly shows the advantages of flattening out our nested abstract types.  It makes the code more concise and easier to understand and reason about, both for the initial implementer, and for the person the comes by later that needs to understand the code in order to work in it.  If we end up with nested structures, it's best to `flatten` them out to make the operations over the data contained within the datatype's context easier to reason about. Whether it's `Option`, `Try`, `Either`, or some other type, the concept is the same.
+
+##### `Try`
+##### `Either`
+
 #### `flatMap`
 #### `foreach`
 #### `exists`
