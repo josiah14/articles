@@ -1063,6 +1063,31 @@ scala> result match {
 Notice in the above code sample, however, that the `match` function does not return a `Success` value, it just returns absolutely nothing (denoted in Scala by the `Unit` type).
 
 ##### Either
+`map`ping over an `Either` is a bit different, because it's not clear which projection, `Left` or `Right`, that you would want `map` to operate on just from the nature of the type itself.  Therefore, in order to map over an `Either` instance, you need to first declare which projection, `Left` vs. `Right`, you want `map` to apply to.  This will be the case for most to all of the Collections-like methods implemented for `Either`.  This is cited as a design problem by the Scala community, and may be a topic of a later Scala article if the topic proves worth the research based on my own programming experiences down the road.  The main disadvantage I see to using the `Either` type, at the moment, is if you want to chain your collections methods, such as calling `map(_ * 2).map(_ > 2)`, I actually have to specify the `RightProjection` for each one because each of the collections methods are defined for the Projections of `Either`, but the functions return the `Either` type.
+
+Here's an example which illustrates this predicament:
+```scala
+scala> val disjointUnion: Either[String, Int] = Right(5)
+disjointUnion: Either[String,Int] = Right(5)
+
+scala> disjointUnion.right.map(_ * 2).map(_ > 5)
+<console>:12: error: value map is not a member of Product with Serializable with scala.util.Either[String,Int]
+       disjointUnion.right.map(_ * 2).map(_ > 5)
+                                      ^
+
+scala> disjointUnion.right.map(_ * 2).right.map(_ > 5)
+res22: Product with Serializable with scala.util.Either[String,Boolean] = Right(true)
+```
+You should also notice from the above example that our operations can give us back an `Either` that holds different types (in this case, the `Right` projection holds a `Boolean` instead of an `Int` after the `map` operations).
+
+Despite the mentioned problems, `map` still allows us to stay within our `Either` context, even if there's a bit more verbosity around it.  Note that `map`ping will not break if our `Either` instance happens to be the other projection.
+
+To illustrate by building on the above example:
+```scala
+scala> disjointUnion.left.map(_ + " some more text")
+res23: Product with Serializable with scala.util.Either[String,Int] = Right(5)
+```
+
 #### `flatten`
 #### `flatMap`
 #### `foreach`
