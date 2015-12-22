@@ -1411,20 +1411,10 @@ eitherRightEither: Either[Either[String,Int],String] = Left(Right(3))
 scala> val eitherEitherRight: Either[Either[String, Int], String] = Right("hello, this is weird")
 eitherEitherRight: Either[Either[String,Int],String] = Right(hello, this is weird)
 
-scala> leftEither.flatten
-<console>:16: error: value flatten is not a member of Either[String,Int]
-       leftEither.flatten
-                  ^
-
 scala> eitherLeftEither.flatten
 <console>:17: error: value flatten is not a member of Either[Either[String,Int],String]
        eitherLeftEither.flatten
                         ^
-
-scala> leftEither.left.flatten
-<console>:16: error: value flatten is not a member of scala.util.Either.LeftProjection[String,Int]
-       leftEither.left.flatten
-                       ^
 
 scala> eitherLeftEither.left.flatten
 <console>:17: error: value flatten is not a member of scala.util.Either.LeftProjection[Either[String,Int],String]
