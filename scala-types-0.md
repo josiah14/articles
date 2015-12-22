@@ -1424,6 +1424,42 @@ scala> eitherLeftEither.left.flatten
 
 Do you see what the problem is?  `Either` is unbiased, so when I try to `flatten` a `LeftProjection[Either[String, Int], String]`, should I prefer the `Left` type get back an `Either[String, String]` or the `Right` type and get back a `Either[Int, String]`?  The compiler can't read your mind, so `flatten` is just not possible on `Either` types.
 
+###### `rightJoin` and `leftJoin`
+
+If you know which way you want to `flatten` your `Either`, you can use `rightJoin` and `leftJoin`.  I will only cover `leftJoin` since `rightJoin` works exactly the same, only it operates on the `RightProjection` instead of the `LeftProjection`.  I would have called these functions `rightFlatten` and `leftFlatten`, but I suppose that's nit-picking.
+
+Here's an example of using `leftJoin` to flatten out a nested `Either`.
+
+```scala
+scala> val eitherLeftEither: Either[Either[String,Int],Int] = Left(Left("three"))
+eitherLeftEither: Either[Either[String,Int],Int] = Left(Left(three))
+
+scala> eitherLeftEither.joinLeft
+res17: scala.util.Either[String,Int] = Left(three)
+
+scala> val eitherRightEither : Either[Either[String,Int],Int] = Left(Right(3))
+eitherRightEither: Either[Either[String,Int],Int] = Left(Right(3))
+
+scala> eitherRightEither.joinLeft
+res19: scala.util.Either[String,Int] = Right(3)
+
+scala> val eitherRightEither : Either[Either[String,Int],String] = Left(Right(3))
+eitherRightEither: Either[Either[String,Int],String] = Left(Right(3))
+
+scala> eitherRightEither.joinLeft
+<console>:16: error: Cannot prove that Either[String,Int] <:< scala.util.Either[C,String].
+       eitherRightEither.joinLeft
+                         ^
+
+scala> val eitherRightEither : Either[Either[String,Int],Int] = Right(5)
+eitherRightEither: Either[Either[String,Int],Int] = Right(5)
+
+scala> eitherRightEither.joinLeft
+res20: scala.util.Either[String,Int] = Right(5)
+```
+
+Note from the above that the types need to resolve properly so that if your outer `Either` happens to be the other projection from your join, that no information is lost.  In other words, to `flatten` your `Either`, your type can't be something like `Either[Either[String, Int], String]` because if you have a `Right` value and you do a `leftJoin`, the compiler can't know whether the `Right` type of the result should be an `Int` or a `String`.  If the inner-`Either` is a `Right`, then the result of `leftJoin` would be an `Either[String, Int]`, but if the outer `Either` is a `Right`, then the result of `leftJoin` would be an `Either[String, String]`.
+
 #### `flatMap`
 #### `foreach`
 #### `exists`
