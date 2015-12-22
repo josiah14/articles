@@ -1422,7 +1422,7 @@ scala> eitherLeftEither.left.flatten
                              ^
 ```
 
-Do you see what the problem is?  `Either` is unbiased, so when I try to `flatten` a `LeftProjection[Either[String, Int], String]`, should I prefer the `Left` type get back an `LeftProjection[String, String]` or the `Right` type and get back a `LeftProjection[Int, String]`?  The compiler can't read your mind, so `flatten` is just not possible on `Either` types.
+Do you see what the problem is?  `Either` is unbiased, so when I try to `flatten` a `LeftProjection[Either[String, Int], String]`, should I prefer the `Left` type get back an `Either[String, String]` or the `Right` type and get back a `Either[Int, String]`?  The compiler can't read your mind, so `flatten` is just not possible on `Either` types.
 
 #### `flatMap`
 #### `foreach`
