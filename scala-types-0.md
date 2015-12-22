@@ -1424,7 +1424,7 @@ scala> eitherLeftEither.left.flatten
 
 Do you see what the problem is?  `Either` is unbiased, so when I try to `flatten` a `LeftProjection[Either[String, Int], String]`, should I prefer the `Left` type get back an `Either[String, String]` or the `Right` type and get back a `Either[Int, String]`?  The compiler can't read your mind, so `flatten` is just not possible on `Either` types.
 
-###### `rightJoin` and `leftJoin`
+##### `rightJoin` and `leftJoin`
 
 If you know which way you want to `flatten` your `Either`, you can use `rightJoin` and `leftJoin`.  I will only cover `leftJoin` since `rightJoin` works exactly the same, only it operates on the `RightProjection` instead of the `LeftProjection`.  I would have called these functions `rightFlatten` and `leftFlatten`, but I suppose that's nit-picking.
 
