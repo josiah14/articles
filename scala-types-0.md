@@ -1458,7 +1458,7 @@ scala> eitherRightEither.joinLeft
 res20: scala.util.Either[String,Int] = Right(5)
 ```
 
-Note from the above that the types need to resolve properly so that if your outer `Either` happens to be the other projection from your join, that no information is lost.  In other words, to `flatten` your `Either`, your type can't be something like `Either[Either[String, Int], String]` because if you have a `Right` value and you do a `leftJoin`, the compiler can't know whether the `Right` type of the result should be an `Int` or a `String`.  If the inner-`Either` is a `Right`, then the result of `leftJoin` would be an `Either[String, Int]`, but if the outer `Either` is a `Right`, then the result of `leftJoin` would be an `Either[String, String]`.
+Note from the above that the types need to resolve properly so that if your outer `Either` happens to be the other projection from your join, that no information is lost.  In other words, to `flatten` your `Either`, your type can't be something like `Either[Either[String, Int], String]` because if you have a `Right` value and you do a `leftJoin`, the compiler can't know whether the `Right` type of the result should be an `Int` or a `String`.  If the inner-`Either` is a `Right`, then the result of `leftJoin` would be an `Either[String, Int]`, but if the outer `Either` is a `Right`, then the result of `leftJoin` would be an `Either[String, String]`.  Creating a version of `leftJoin` that could handle this would require leveraging dependent types, which is a more advanced topic and beyond the scope of this article.
 
 #### `flatMap`
 #### `foreach`
