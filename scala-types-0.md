@@ -45,6 +45,7 @@ def storeFruit(fruits: (Any, String)) = fruits match {
   case _ =>
 }
 ```
+
 ### Collections
 
 I'm not actually going to talk in detail about the actual Scala Collections API in this section because you don't need to know much of it in order to start using algebraic datatypes.  However, there are some high-level functions which operate on collections that are beneficial to understand with respect to algebraic datatypes because they will implement many of the same functions.
@@ -57,6 +58,7 @@ To start out, it helps to think about a `List` in Scala as a context that contai
 The `map` function takes a single argument function as an argument and applies it to every item in the `List` to create a *new `List`*.  You can either think of this as creating the new `List` by applying the function to every item in the `List`, or you could think of it as applying the function passed to `map` to the data in the context managed by the `List` object.  Either way, the only outcome that makes sense is that the result is a new `List` containing the results of applying `map`'s argument to every item in the `List`.
 
 E.g. *(in the Scala REPL)*
+
 ```scala
 scala> val xs: List[Int] = List(1, 2, 4)
 scala> xs.map(n => n + 1)
@@ -65,12 +67,15 @@ res0: List[Int] = List(2, 3, 5)
 scala> xs
 res1: List[Int] = List(1, 2, 4)
 ```
+
 It's important to note that the `map` function is intended for mathematically pure operations.  This means that it should not be used for operations that may create side effects, such as writing to disk, printing to the screen, or mutating a value in memory.  For those sorts of operations, you should, rather, use the `foreach` method, which will be discussed later.
 
 #### `flatten`
+
 `flatten` is pretty simple.  As you might guess, all it does is take a multidimensional list and decrease its dimensionality by one (so if you had a `List[List[List[Intt]]]`, calling flatten on it would give you a `List[List[Int]]` back.)
 
 E.g. *(in the Scala REPL)*
+
 ```scala
 scala> val xs List[List[Int]] = List(List(1, 2, 3), List(4, 5, 6), List(7, 8, 9))
 scala> xs.flatten
@@ -85,9 +90,11 @@ res1: List[List[Int]] = List(List(1, 2, 3), List(4, 5, 6), List(7, 8, 9))
 implement `flatMap` using `map` and `flatten`.
 
 #### `flatMap`
+
 `flatMap` is just like calling `flatten` after `map` - it `flatten`s out the result `List` in the event that this list is multidimensional (a.k.a the List contains other Lists).
 
 E.g. *(in the Scala REPL)*
+
 ```scala
 scala> val xs: List[Int] = List(1, 2, 4)
 scala> xs.flatMap(n => List(n + 1))
@@ -100,9 +107,11 @@ res1: List[Int] = List(1, 2, 4)
 As with `map`, `flatMap` should not be used for operations which may cause side effects.
 
 #### `foreach`
+
 `foreach` works exactly like `map` except it does **NOT** return a new `List`.  The reason the result `List` is not returned is because this function is intended for operations that cause side effects.  In other words, you use `foreach` when your intention is not to alter the `List` for a new result, but to do something stateful with the values of the list, such as printing them to the console, displaying them to a GUI, saving them to a database, writing them to a file, etc.  When you want to use the current `List` to generate a new result from some calculation, use `map`.
 
 E.g. *(in the Scala REPL)*
+
 ```scala
 scala> val xs List[Int] = List(1, 2, 3)
 scala> val result = xs.foreach(n => println(n))
@@ -119,6 +128,7 @@ res0: List[Int] = List(1, 2, 3)
 You *could* do the above using `map`, but it's less efficient.  If you think about it a minute, you might understand the most obvious reason why: `map` will alway create a new result object, in this case, a `List`, whereas `foreach` never creates a result, it just performs an operation and then returns execution back to the caller. This means that when we use `foreach` the GC doesn't have to worry about cleaning up an unused object and we also save some memory since we never have to allocate those additional resources for instantiating a new `List` object.
 
 #### `exists`
+
 `exists` is like `contains`, except that it takes a lambda function that returns a `Boolean` to check against the list instead of a concrete value.  This allows us to check to see whether a `Collection` contains at least one value that satisfies a particular property, rather than needing to check for the existence of any possible value we might want.  `exists` returns `true` if the predicate returns `true` for at least one value in the `List`, and `false` otherwise.
 
 E.g. *(in the Scala REPL)*
@@ -135,6 +145,7 @@ res2: List[Int] = List(1, 2, 3)
 ```
 
 *A more interesting example*
+
 ```scala
 scala> val x: List[Any] = List(1, 2, 3)
 scala> x.exists({ case _: String => true; case _ => false })
@@ -145,9 +156,11 @@ res1: Boolean = true
 ```
 
 #### `filter`
+
 `filter` take a lambda function that returns a `Boolean` to serve as a predicate which filters out all of the values for which the predicate returns `false` in the result `List`.  Another way to say this is `filter` creates a new `List` which only contains the elements for which the predicate returned `true`.
 
 E.g. *(in the Scala REPL)*
+
 ```scala
 scala> val x: List[Int] = List(1, 2, 3, 4)
 scala> x.filter(n => (n % 2) == 0)
@@ -161,9 +174,11 @@ res2: List[Int] = List(1, 2, 3, 4)
 ```
 
 #### `forall`
+
 `forall` takes a lambda predicate (a lambda function that returns a boolean) and returns `true` if all values in the `Collection` satisfy the predicate, and `false` otherwise.
 
 E.g. *(in the Scala REPL)*
+
 ```scala
 scala> val x: List[Int] = List(1, 2, 3, 4)
 scala> val y: List[Any] = x
@@ -200,9 +215,11 @@ res2: Boolean = false
 As you can see from the above, `forall` (and also `filter` and other related functions that take a lambda) can be quite handy, but you have to be careful to satisfy the type system when writing in your logic.  Most type errors should be caught by the Scala compiler, so if you have a good IDE, it should tell you when you're doing something that the Scala compiler doesn't like, but it should also be apparent from the error message above that you might not always get the most helpful error responses (take a look at the `scala.MatchError` when calling `forall` on `y` for the first time).  The best way to guard against running into these sorts of issues is to make sure you **1.** always provide a default case at the end to ensure all of your possible edge cases have a match, and **2.** make sure you don't test for cases that could never occur, such as in the last call of `forall` on `x` in the above example, where we try to match the contents of `x` on the `String` type when we already know via the type declaration on `x` that all of the items are `Int`s.  Scala's type system will catch such senseless attempts and actually prevent your code from compiling in these cases.
 
 #### `zip`
+
 `zip` takes another `List` as a parameter and pairs up the elements of each of the `List`s by index.  In the event that one `List` is shorter than the other, the extra elements from the longer `List` will be excluded in the resulting `List`. The result `List` will be a `List` containing `Tuple2`s, with the first element of the tuple being the element from the first `List`, and the second element of the tuple being the element from the second `List`.
 
 E.g. *(in the Scala RELP)*
+
 ```scala
 scala> val x: List[Int] = List(1, 2, 3, 4)
 scala> val y: List[String] = List("one", "two", "three")
@@ -214,9 +231,11 @@ res1: List[Int] = List(1, 2, 3, 4)
 ```
 
 #### `unzip`
+
 `unzip` undoes the effects of zip to provide a `Tuple2` of two `List`s.  The first list contains all of the first tuple values, and the second list contains all of the second tuple values.
 
 E.g. *(in the Scala REPL)*
+
 ```scala
 scala> val x: List[Int] = List(1, 2, 3, 4)
 scala> val y: List[String] = List("one", "two", "three")
@@ -229,9 +248,11 @@ You can see from the above that we don't get the fourth element from `List` `x` 
 Note from the above examples for `unzip` and for `zip` that both of these functions are order preserving. This is because in zipping operations, most often, we care that the elements get paired up by their position in the `List`s.  This method is often used as a way of creating sets that have something similar to a key-value pairing relationship in their elements, or at least that the elements in each `List` being zipped have some sort of order or index related association.
 
 #### `nonEmpty`
+
 `nonEmpty` is just what it sounds like.  It returns `false` if the `List` is empty (has no elements), and `true` otherwise.
 
 E.g. *(in the Scala REPL)*
+
 ```scala
 scala> val x: List[Int] = List()
 scala> x.nonEmpty
@@ -248,9 +269,11 @@ res3: Boolean = true
 ```
 
 #### `orElse`
+
 `orElse` will return a `PartialFunction` which takes an index argument and returns the item in the first encountered non-empty `List` at that index value.  The reason for this, possibly non-intuitive, behavior is that `orElse` is inherited from the `PartialFunction` trait through `AbstractSeq` which mixins `Seq` which extends `PartialFunction`.  So in order to operate on a `List`, Scala first converts the `List`s to the more generic type of `PartialFunction`, and then uses `orElse` to compose the two `PartialFunctions` together. You don't need to understand all of the details of this right now, but it's important to get a feel for this function because it is quite handy when working with many of Scala's high-kinded types.
 
 E.g. *(in the Scala REPL)*
+
 ```scala
 scala> var x: List[Int] = List()
 scala> var pfun = x.orElse(List(3))
@@ -293,11 +316,13 @@ res2: AnyVal = !
 As you can see from the above, Scala doesn't protect you very much from errors such as choosing an invalid index, and you use some visibility (such as being able to get the `List` length) since everything gets converted to the more generic `PartialFunction` type.  This function may not be as useful for `Lists`, but for other types such as `Option` and `Try`, it can be very handy.
 
 #### `getOrElse`
+
 `getOrElse` is not implemented for `List`s, but I will make up a theoretical version of it to help introduce the concept here so that when it's introduced for other types you will have a conceptual reference point.
 
 If `getOrElse` were implemented for the `List` type, I would imagine it as a function that gets the `head` of the `List` if the `List` is `nonEmpty`, or returns the argument provided to the function as a default value when the `List` is empty.  This particular concept of this function would work like the following:
 
 *(in the Scala REPL)*
+
 ```scala
 scala> val x: List[Int] = List(1, 2)
 scala> val empty: List[Int] = List()
@@ -314,6 +339,7 @@ res2: Int = 5
 An alternative concept of this theoretical function for `Lists` that is less immutable and more stateful, but closer to the way a Prolog programmer would think, would be for `getOrElse` to return each of the `List`'s elements in sequence, and the default value once it gets to the end.
 
 *(in the Scala REPL)*
+
 ```scala
 scala> val x: List[Int] = List(1, 2)
 scala> val empty: List[Int] = List()
@@ -341,7 +367,9 @@ Since this implementation is stateful, it is less in line with the Scala philoso
 List comprehensions in Scala might be a little bit different from what you are used to if you're coming from Haskell or Python.  I'll demonstrate comprehensions by giving the Haskell and Python syntax alongside the Scala syntax for the same thing, with the result provided for each.
 
 ##### Cartesian Product *(Examples in the REPL)*
+
 ##### Haskell
+
 ```haskell
 Prelude> let as = [1, 2, 3]
 Prelude> let bs = ["one", "two", "three"]
@@ -349,7 +377,9 @@ Prelude> let cartesianProduct xs ys = [(x, y) | x <- xs, y <- ys]
 Prelude> cartesianProduct as bs
 [(1,"one"),(1,"two"),(1,"three"),(2,"one"),(2,"two"),(2,"three"),(3,"one"),(3,"two"),(3,"three")]
 ```
+
 ###### Python
+o
 ```python
 >>> xs = [1, 2, 3]
 >>> ys = ["one", "two", "three"]
@@ -359,7 +389,9 @@ Prelude> cartesianProduct as bs
 >>> cartesianProduct(xs, ys)
 [[1, 'one'], [1, 'two'], [1, 'three'], [2, 'one'], [2, 'two'], [2, 'three'], [3, 'one'], [3, 'two'], [3, 'three']]
 ```
+
 ###### Scala
+
 ```scala
 scala> val as: List[Int] = List(1, 2, 3)
 as: List[Int] = List(1, 2, 3)
@@ -386,8 +418,11 @@ res95: List[Any] = List((1,one), (2,one), (3,one))
 As you can see from the above, the Scala syntax can be thought of as sort of a mash-up between the Python and the Haskell syntaxes. Scala follows Python in leading with the `for` keyword to iterate over each element out of the `Collection`, but then follows `Haskell` more closely in using the `<-` operator to extract the current element from the collection and separating each extraction with a `,` rather than requiring a separate `for` expression for each `Collection` iteration being performed.
 
 Let's look at another, slightly more interesting example before moving on to conditionals within a comprehension.
+
 ##### Scalar Product
+
 ###### Haskell
+
 ```haskell
 Prelude> let as = [1, 2, 3]
 Prelude> let bs = [4, 5, 6]
@@ -395,7 +430,9 @@ Prelude> let scalarProduct xs ys = [ x * y | (x, y) <- zip as bs ]
 Prelude> scalarProduct as bs
 [4,10,18]
 ```
+
 ###### Python
+
 ```python
 >>> xs = [1, 2, 3]
 >>> ys = [4, 5, 6]
@@ -407,7 +444,9 @@ Prelude> scalarProduct as bs
 >>> scalarProduct(xs, ys)
 [4, 10, 18]
 ```
+
 ###### Scala
+
 ```scala
 scala> val as: List[Int] = List(1, 2, 3)
 as: List[Int] = List(1, 2, 3)
@@ -421,14 +460,17 @@ scalarProduct: (xs: List[Int], ys: List[Int])List[Int]
 scala> scalarProduct(as, bs)
 res100: List[Int] = List(4, 10, 18)
 ```
+
 As you can see from the above, like in Haskell, we can leverage Scala's pattern matching abilities to make working with the result of the `zip` function a little easier where in Python we had to rely on the extraction methods for Python `Iterator`s in order to get the values out for computing the product of each pair.
 
 ##### Pythagorean Triples using Conditionals
+
 You can also filter the results of your comprehensions based on any conditional you can form using the variables within the comprehension expression by using the `if` keyword with a predicate.  In SQL, this would be like the `where` clause.  This behavior is the same as in Python when you use the `if` keyword in a comprehension.
 
 Let's use the slightly contrived example of creating pythagorean triples from a list of numbers using List Comprehensions.
 
 ###### Haskell
+
 ```haskell
 Prelude> let xs = [1..50]
 Prelude> [ (a, b, c) | a <- xs, b <- drop (a - 1) xs, c <- drop (b - 1) xs, a^2 + b^2 == c^2 ] 
@@ -436,6 +478,7 @@ Prelude> [ (a, b, c) | a <- xs, b <- drop (a - 1) xs, c <- drop (b - 1) xs, a^2 
 ```
 
 ###### Python
+
 ```python
 >>> xs = range(1, 51)
 >>> [ (a, b, c) for a in xs for b in xs[a - 1:] for c in xs[b - 1:] if a**2 + b**2 == c**2 ]
@@ -443,6 +486,7 @@ Prelude> [ (a, b, c) | a <- xs, b <- drop (a - 1) xs, c <- drop (b - 1) xs, a^2 
 ```
 
 ###### Scala
+
 ```scala
 scala> val xs: List[Int] = (1 until 51).toList
 xs: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50)
@@ -454,6 +498,7 @@ res9: List[(Int, Int, Int)] = List((3,4,5), (5,12,13), (6,8,10), (7,24,25), (8,1
 You can see, here, that Scala looks a bit more like Python for the `Where` clause part of List Comprehensions in that it uses the `if` keyword to denote a conditional that will act as a filter on the results.
 
 *Note that you could also write Scala comprehensions this (more readable) way, but the semicolons are always required inside the `for` parentheses:*
+
 ```scala
 scala> for (
      | a <- xs;
@@ -465,6 +510,7 @@ res10: List[(Int, Int, Int)] = List((3,4,5), (5,12,13), (6,8,10), (7,24,25), (8,
 ```
 
 ## Higher-Kinded Error Handling Datatypes
+
 Most, and possible all, higher-kinded datatyes in statically typed functional languages like Scala can be thought of as boxes that represent a context that may hold one or more values.  Types that can be thought of as a contextual box like this are called a `Functor` in Category Theory, and you can use this keyword to look up the specifics if you like.  However, I'm not going to talk at all about the scary Caterogical Theory behind these datatypes in this article.  Instead, I'm going to keep it simple, and show you how to use these higher-kinded Scala datatypes by example, instead.  I just thought I would mention that these things have a name, just in case you are the curious type that wants to just straight down into the rabbit hole.
 
 Let's start out by remembering that I referred to the concept of `List`s as a collection of values held inside of the `List` context.  In this way, `List`s are a kind of box that holds zero, one, or many values.  The `List` datatype provides a series of functions for manipulating the data inside of a `List` context and even for extracting values out of the `List` context to be used in other computational contexts (such as printing them to the screen or storing them in a database in some manner, or even just using those values in the mathematically/functionally pure context of functions). Most of these operations we looked at in the last section, and the only other one I want to mention for the moment is the fact that a Scala `List` is, itself, just a function that takes an index `Int` and returns the value at that index from the `List`.
@@ -477,13 +523,17 @@ res0: Int = 2
 Most higher-kinded types provided natively by the core Scala libraries, and all of the types we will talk about in this article, also have methods that allow you to extract the values out of the context of type so the values can be used freely (although, not all higher-kinded types that could could encounter in Scala will necessarily allow you to do this).
 
 ### Introduction to Option, Try, and Either
+
 There are three core types that, when used, are either always or most often used for error handling purposes.  These types each only hold at most on value at a time for each instance of the type.  The types we will cover are `Option`, `Try`, and `Either`.
 
 #### Option
+
 ##### Introduction
+
 The `Option` type is used to wrap a result from a function which might return a value, or might not return anything.  An instance of `Option` can be one of two values: `Some` or `None`.  If an `Option` object is the value `None`, as you might expect, that means the operation that produced the `Option` you are working with did not return a result; you actually got nothing back.  However, if your instance of `Option` is a `Some`, that `Some` value has inside of it "`Some`" value.  If your `Option` is of type `Option[Int]`, then your `Some` contains an integer.  If the type is `Option[List[String]]`, then your `Some` contains a `List` of `String`s. Your `Option` could even be the type `Option[Option[List[Int]]]`.  This instance is a little interesting, in that your value inside of the outer-most `Option` could either be a `Some` that contains a `List[Int]`, or `None`.  I'm sure by now you are beginning to get the picture, so let's look at some examples to help solidify this concept in your head.
 
 ##### Basic Examples
+
 Throughout these examples, I'll introduce you to how you can use pattern matching to work with higher-kinded types like `Option`.  This is possibly the most common way to work with these types in scala because it's the most concise and easily understood way to look at a higher-kinded type's value and delegate accordingly.  I could try to explain this with words, but I think examples will do a better job.
 
 ```scala
@@ -553,7 +603,9 @@ res6: Option[Any] = Some(List(1, 2, 3))
 scala> makeOption(Some(Some(None)))
 res7: Option[Any] = Some(Some(None))
 ```
+
 We could also write the above function as such to make a 100% logically equivallent function:
+
 ```scala
 scala> def makeOption(value: Any): Option[Any] = value match {
      |   case null | None => None
@@ -562,6 +614,7 @@ scala> def makeOption(value: Any): Option[Any] = value match {
      | }
 makeOption: (value: Any)Option[Any]
 ```
+
 *Node, in the above, using a name followed by the `@` symbol in a case statement allows you to give a name to the entire value to the right of the `@` for use on the right side of the `=>`. So, in this example, `something` ends up just being an alias for the whole of `Some(thing)`, which is really just `value`.  We could just use `value` instead of `something @ `, here, but I wanted to give a contrived example of another powerful Scala feature you can use in pattern matching.*
 
 By now, you're probably seeing the pattern and getting the hang of this.  I'll leave it up to you to further improve `makeOption`.
@@ -571,6 +624,7 @@ By now, you're probably seeing the pattern and getting the hang of this.  I'll l
 *Hint for the above: you'll probably had to write an iterative or a recursive solution to complete the above exercise.  Notice anything particularly poor about the above code, and, likely, the code you wrote?  You lose most (or all) of your type information.  Keep in mind, this was an exercise to get you used to thinking and reasoning about abstract types, especially when they may be more complex and potentially nested.  But you typically wouldn't write this sort of code in the real world.*
 
 ##### When to Use Option and its Advantage Over Null
+
 `Option` should be used when you have operations that might not return a value, but where you don't care to hold onto the exception or error message if one is produced. You can think of `Option` as a way of replacing `null` that is safer, because if you don't handle the `None` case, the Scala compiler will yell at you and force you to handle that case before letting you compile your code.  What this means is, if you use `Option` throughout your Scala code, you should rarely to never see a `NullPointerException` thrown during runtime.  All those years of wasted time and headaches on `NullPointerException`s gone!  This is what every Java programmer used to only dream about, now a dream come true.
 
 As an example, let's consider consider the `get` function from the [scala-redis](https://github.com/debasishg/scala-redis) library.  If you try to `get` a value from a Redis key, there is a possibility that you won't `get` anything back because of reasons such as the key may not exist, the key may not have a value (or its value might be `null`).  No matter the case, the basic fact is, if you try to `get` the value of a Redis key, there exists the possibility that you may not `get` anything back.
@@ -578,6 +632,7 @@ As an example, let's consider consider the `get` function from the [scala-redis]
 Because of this possibility, [scala-redis](https://github.com/debasishg/scala-redis) implemented its `get` function to return an `Option`.  In the event that a value is returned, `get` returns a `Some` that holds the value it got back from Redis, and `None` if it wasn't able to get anything back.
 
 Let's check out an example:
+
 ```scala
 scala> import com.redis._
 import com.redis._
@@ -612,12 +667,15 @@ hello world!
 scala> printRedisKeyValue(redis.get("not-a-key"))
 oops, there was no value at that key
 ```
+
 *Note that the non-exhaustive match warning above would be a compilation error if we were compiling such code in an application code base.*
 
 #### Try
+
 That last example for the scala-redis implementation of `get` brings us to our next datatype: `Try`.  `Try` is just what you might guess if you've programmed in languages like C++ and Java before that provide keywords for the `try ... catch ... finally` pattern of handling exceptions that might be thrown during runtime.  `Try` replaces the `try - catch - finally` keywords with a higher-kinded type that can be either a value of `Success` that holds the response from the successful operation, or a value of `Failure` that holds a `Throwable`, such as an `Exception`.
 
 Someone coming straight from Java might try to use the scala-redis library as follows:
+
 ```scala
 scala> var redisClient: RedisClient = null // We are already using null, so we know this is bad Scala practice
 redisClient: com.redis.RedisClient = null
@@ -645,7 +703,8 @@ scala> if (redisClient != null) {
      | }
 There was a communication error that occurred with Redis
 ```
-You might notice from the above REPL printout that the creation of the RedisClient object doesn't actually check that it can establish a connection to Redis, but let's assume that it could, and would through an exception if it couldn't connect.  You can see that we have to violate one of the principals of Scala, immutability, in order to create our Redis client.  This situation will occur most often when using Java libraries from Scala that could throw exceptions when instantiating the class (such as when creating an instance of a class that serves as a server client - if it cannot connect to the server, it will likely throw an exception).
+
+The underlying issue is that when we create a new Redis client, it might try to connect, but if there is no Redis server available at the provided host and port, it will throw a RuntimeException.  You can see that we have to violate one of the principals of Scala, immutability, in order to create our Redis client in a way that accounts for the possibility of `Exception`s.  This situation will occur most often when using Java libraries from Scala that could throw exceptions when instantiating the class (such as when creating an instance of a class that serves as a server client - if it cannot connect to the server, it will likely throw an exception).
 
 Let's implement this the Scala way, using `Try`.
 
@@ -674,11 +733,13 @@ scala> valueAtKey match {
      | }
 it failed, therefore, I am sad
 ```
+
 You can see in the above code, first of all, how using the `Try` type flattens out our code and allows us to handle our errors as values on a case-by-case basis.  In the definition of `valueAtKey`, we return the result in the form of a `Try` from `client.get` if `redisClient` is a `Success` value, or if the `redisClient` is a `Failure` value, we just pass back the exception wrapped in a new `Failure` instance.  Someone clever might also see through this example how `Try` has the potential to flatten out code that would otherwise be solved by nested `try` blocks.
 
 One such problem that often results in engineers writing nested `try` statements is when working with libraries that throw exceptions on class instantiation (and possibly in other scenarios). If I have to have two or more such class instances that work together to accomplish some task, it's really easy to accidentally miss freeing the resources of all clients in the event that an exception is thrown. This is because the programmer has to think about all potential resources that need to be freed in each `finally` block and is also responsible for checking that these resources aren't `null` or in an invalid state for freeing the resources before actually freeing them.  This sort of coding creates a brittle application with a lot of boilerplate error handling code.
 
 Here is an example of this using an imaginary library for a service with a resource leak.
+
 ```scala
 var configClient: ImaginaryConfigurationClient = null
 try {
@@ -706,7 +767,9 @@ if (configClient != null) {
   }
 }
 ```
+
 One way to fix this is to nest your `try` blocks.
+
 ```scala
 var configClient: ImaginaryConfigurationClient = null
 try {
@@ -735,6 +798,7 @@ try {
   }
 }
 ```
+
 *Are your eyes bleeding, yet?*
 
 In Scala, it's much easier to clean up these sorts of scenarios using `Try` because our results are wrapped by the `Try` context.  Let's take a look at how `Try` can be used to simplify the above examples of traditional `try - catch - finally` logic.
@@ -778,12 +842,15 @@ imaginaryClient match {
 
 if (configClient.isSuccess && configClient.get.connected) configClient.get.destroy()
 ```
-The above code will behave exactly the same as the previous code block.  So, even at this point, without understanding, yet, how to use comprehensions and `Collection`s functions on these datatypes, we can see that we have the power to drastically simplify code which needs to handle the possibility of `Throwable`s.
+
+The above code will behave exactly the same as the previous code block on the surface.  The difference is minor, but in the previous example, the `Exception` gets directly wrapped into the new `Try` context through the `match` expression handles the `Failure` `case`, but in this example, when `get` encounters the `Failure`, it rethrows the `Exception` inside that `Failure`, which is then, of course, caught by the new `Try` context we are wrapping the `ImaginaryServiceClient` instantiation in.  However, even at this point, without understanding, yet, how to use comprehensions and `Collection`s functions on these datatypes, we can see that we have the power to drastically simplify code which needs to handle the possibility of `Throwable`s.
 
 #### Either
+
 `Either` is a lot like `Try`, in that it can be one of two values.  However, while `Try` is either a `Success` that holds the value returned from a function or operation when it successfully completes or a `Failure` that holds the `Throwable` which contains information about the error that occurred while trying to perform the operation, `Either` can be 'either' a `Right`, which, by convention, normally contains the value an operation returns for the expected, or successful, value (think, if you get a `Right`, things went 'right'), or else `Either` could be a `Left`, which normally holds some less-happy value such as an error (but it doesn't have to indicate an error).
 
 ##### When to Use Either Over Try
+
 Some people out there in Google-land will tell you that `Either` is less preferred or inferior to the `Try` type and normally indicates a code-smell.  I'm not ready, yet, to draw that particular conclusion, but there is a distinction that needs to be made in purpose between `Try` and `Either` so that you know when to use each and how to design your APIs.
 
 The main thing to realize is that `Try` is meant specifically for the purpose of handling `Exception`s.  Intelligently using `Either` vs. `Try`, therefore, requires some discipline around when you choose to throw `Exceptions` vs. just notify the application that some sort of error or issue that is expected to be common and non-critical arises.  For the latter case, `Either` is a better choice than `Try`.  The other main purpose for `Either` is when you have a function which may return one of two types, but neither type returned necessarily indicates an error.  Such cases as these are fairly uncommon, but they do arise from time to time, so it's good to know that the `Either` type is there if you ever run into such a scenario where you DO need a disjoint union as your return type.  Most of the time, though, it helps to think of `Either` as an alternative to `Option` that returns some information about why you have a `None` when a `None` occurs, rather than just being given back `None` with no explanation.
@@ -836,11 +903,13 @@ scala> val httpResponse: Try[Either[StatusLine, HttpEntity]] = handleHttpRespons
 Dec 11, 2015 1:39:41 PM org.apache.http.client.protocol.ResponseProcessCookies processCookies
 httpResponse: scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]] = Success(Right(org.apache.http.conn.BasicManagedEntity@10a15612))
 ```
+
 So, you can see in the above, anytime I get a response back, excluding 500 range HTTP status codes, I send back some data from the HTTP response.  The difference here, from what you might be traditionally used to with Java and other languages that don't have something akin to the `Either` type, is that `Either` allows us to indicate a kind of non-critical error and even to provide a different kind of data/type back when these less successful situations occur.  However, the above example still demonstrates that there is still an appropriate time to use `Try` and pass back an exception for errors that one would not expect to occur.  My attempt to hit "http://www.google.com" returns a `Failure` because I was behind a proxy which prevented the `httpClient` from being able to reach that address.  However, I had no problem talking to the web server I had running on "http://localhost:3000" at the time, so it returned a `Success[Right[HttpEntity]]` since that address on my web server returns a 200 status code upon success.  Had the "http://localhost:3000" route returned some other code that was outside of the 100-227 range, such as a 307 code for a Temporary Redirect, I would have gotten back a `Success[Left[StatusLine]]`, and I would have been able to recover the relevant information about why I got that code since the `StatusLine` type contains the "reason" sent with HTTP responses for why a certain error code was received, as well as the status code itself and even the protocol version information.  Had the response been a status code in the 500 range, I would have gotten back a `Failure[Exception]` with a message containing the status code and reason provided from the server for why the request failed.
 
 Now, as you read this, you might think that this is all very interesting, but what happens when I want to get the value out of my `Either`?  I can't just `get` it like I can for `Option` and `Try` because it's not obvious that `Right` is necessarily the only truly successful value.  `Either` could be used to return a disjoint union where both possible response types are equally successful value. So, let's look at some examples for how to get the value out of our `Either`.
 
 The most obvious way to get our `Either` values is to just pattern match on the `Either` type.  Building on the last code sample, let's get the value out of our `httpResponse` and do something with it. 
+
 ```scala
 scala> val response = httpResponse.get
 response: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@3b2de156)
@@ -851,12 +920,14 @@ scala> response match {
      | }
 60
 ```
+
 This is a pretty silly example, but it shows that we can actually use pattern matching to do something with the value held inside of the `response` `Either` instance we have.  All the above does is print the first byte of data in the `httpEntity`'s content if it's a `Right`, and print the HTTP status reason if it's a `Left`.
 
 
 However, what if we already knew it was a `Right`, or a `Left`, or were expecting it to be one or other do the degree that we would want an `Exception` to be thrown if it wasn't the `Either` value we were expecting?  Well, we can 'project' any `Either` instance as a `left` projection or a `right` projection.  They both work the same.  If I project my `Either` as a `Right` and it is a `Right`, then if I call `get` on that projection, I get back the value inside of the `Right`.  However, if it's a `Left`, it will throw an `Exception`.  The same goes for the `Left` projection, except `get` throws an `Exception` if it's a `Right`, and returns the value inside of the `Left` otherwise.
 
 Let's look at an example.  Building on the previous code samples we have for `Either`, let's use projections to get the value out of our `response`, which is an instance of `Either`.
+
 ```scala
 scala> response
 res21: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@3b2de156)
@@ -872,19 +943,23 @@ res23: org.apache.http.HttpEntity = org.apache.http.conn.BasicManagedEntity@3b2d
 scala> response.right.get.getContent().read()
 res24: Int = 33
 ```
+
 In this example, you can see that `response` is a `Right[HttpEntity]`.  Therefore, when we project our response as a `Left` and try to `get` its value, it throws a `NoSuchElementException` and then tries to tell us that we can't get the value in `response` as a `Left` projection because `response` is actually `Right`.  Given this, I then said, "Oh, in that case, let me project `response` as a `Right` and try to get the value out of it that way!".  So, when I call `response.right.get`, I'm able to get my `HttpEntity` back.  And then, of course, I can do whatever I want with that `HttpEntity` that was returned to me.  Here, I just do the same thing as before and `read` out the next byte of content in my `HttpEntity`.
 
 Most of the time with `Either`, pattern matching on the value will be the simplest way to work with your `Either` content because `Either` is most often used as a way to delegate execution to one function or the other based on the kind of data you got back.  However, projections are there for the rare instance where you are only interested in handling one of the `Either` values, and want to just ignore the content or throw an `Exception` in the event that you got the other `Either` value back.  However, be aware that if you are using `Either` to determine when you should throw `Exceptions`, you probably should be using `Try`, instead.
 
 ### Higher-kinded Types as Collections
+
 Knowing the basics of the previous section which introduces `Option`, `Try`, and `Either` already gives us a lot of power.  However, there is still even more that we can do with these types than simply pattern match on them and used them as a type-safe way of ensuring proper error handling is written into the software.  As it turns out, all of those functions that were introduced way back in the Prerequisites > Collections section are also part of `Option`, `Try`, and `Either`.  These functions provide a way to interact with the value inside one of these three types without requiring the programmer to extract the value out of the context of the type.  There is some value in this because it allows the programmer to work with the type before handling the error path, or the unhappy path.  This way, the sad path and the happy path can be defined in full, but also separately from each other, so that it's easy to see what the purpose of the code is without all of the error handling noise cluttering up your happy path, and without the happy path obscuring your error handling strategy.  This might not make much sense to you, yet, but I'm confident that, as we go through the various collections functions and how to use them with these higher-kinded types, you will see how working with these types can simplify your code and make it easier to decouple your error paths from the rest of your code.
 
 To introduce the collections functions and how they are used in the context of each type, my intention is to start with (what I perceive to be) the simpler functions, and then dig into the more complex (and often more handy) functions at the end, closing with comprehensions.  I'll also introduce using each function starting with the easiest type to work with, `Option`, then move on to `Try`, and then finish with `Either` (because `Either` is a sort of redheaded step-child among the three).
 
 #### `map`
+
 If you think of `map` in terms of a `List`, it applies a mutation (a function that doesn't cause side-effects) to all the items in the `List` without removing them from the `List` context so that the result is a new `List` of values representing the result of the mutation on each `List` item.  Map behaves just the same with our higher-kinded data types.  It will apply some mutation to the value wrapped by the context of our type (whether it's `Option`, `Try`, or `Either`), and give us back the result without taking us out of that context.  Let's make this clearer through some examples of using `map` on each of the types.
 
 ##### Option
+
 `Option` is what I think to be the most straightforward of all the other types we are looking at in this article.  You can think of `Option` as a special kind of `List` that holds at most one value, but might also be `None`.  If you `map` over an instance of `None`, you will just get a `None` back.  If you `map` over an instance of `Some`, `map` will apply the lambda argument (a.k.a. mutation) you supply it with to the value inside of the `Some` and give you back a new `Some` which holds the result of applying the mutation.  The advantage to `Option` being, as was already mentioned, that you are required to provide a case for the `None` possibility or else explicitly choose to ignore the type and try to get the value anyway (the latter being generally discouraged).
 
 Let's `get` a value out of Redis and mutate its value to create a silly "hello world" application.
@@ -1012,6 +1087,7 @@ res98: Option[Int] = Some(21)
 So, hopefully the above examples help you see the value of using `map` when it isn't necessarily advantageous, yet, to handle our `None` value(s) for our `Option`(s).
 
 ##### Try
+
 For `Try`, `map` works essentially the same way as it does for `Option`, except that it will operates on `Success` values instead of `Some` values.  The idea is the same; if we are not ready to evaluate for exceptions, and just want to continue under the assumption that our `Try`s are `Success`es, we can use `map` and evaluate the results later.
 
 Let's look at some examples of working with Redis in a way that handles potential `Exception`s.
@@ -1052,6 +1128,7 @@ scala> result.map({
 21
 res102: scala.util.Try[Unit] = Success(())
 ```
+
 You can see from the above that, by mapping over the `Try` instances; `count`, `items`, and `result`; I was able to defer evaluation of the `Failure` case until the end.
 
 You may note that I used `recover` here.  `recover` is a special function provided by `Try` that allows you to handle any `Failure` values, but then always return a `Success`.  It would also be good, here, to mention that using `map` to handle the `Success` cases allowed me to then create a separate `recover` block to handle the `Failure` cases.  When working with simpler workflows, I like to end my sequence with `recover` so that it's obvious where my `Exception` handling is occurring, but it's also a good tool for when you actually want to *`recover`* from an `Exception` and proceed as if the operation had generated a non-critical error.  You may find yourself using this more often when interfacing with Java APIs that overuse `Exception`s, as with Scala, most instances of errors you would want to `recover` from would be handled better by the `Either` type.  You could rewrite the above code sample as below, and it would be equally (or more) valid.
@@ -1066,12 +1143,39 @@ scala> result match {
      | }
 21
 ```
+
 Notice in the above code sample, however, that the `match` function does not return a `Success` value, it just returns absolutely nothing (denoted in Scala by the `Unit` type).
 
+Here is one last example of mapping over `Try`s, in case it hasn't sunk in, yet.  This doesn't present anything new, but is slightly less complicated and may be clearer for some people.
+
+```scala
+scala> import com.redis._
+import com.redis._
+
+scala> val r: Try[RedisClient] = Try(new RedisClient("localhost", 6379))
+r: scala.util.Try[com.redis.RedisClient] = Success(localhost:6379)
+
+scala> r.map(_.get("hello-key"))
+res27: scala.util.Try[Option[String]] = Success(Some(hello-key))
+
+scala> r.map(_ => throw new Exception("simulate a second failure"))
+res30: scala.util.Try[Nothing] = Failure(java.lang.Exception: simulate failure)
+
+scala> val r: Try[RedisClient] = Try(new RedisClient("www.google.com", 6379))
+r: scala.util.Try[com.redis.RedisClient] = Failure(java.lang.RuntimeException: java.net.ConnectException: Connection refused)
+
+scala> r.map(_ => throw new Exception("simulate a second failure"))
+res32: scala.util.Try[Nothing] = Failure(java.lang.RuntimeException: java.net.ConnectException: Connection refused)
+```
+
+I think the above example makes it a bit clearer that `map` will only operate on a `Success`, so you will always retrieve the first thrown `Exception` when you decide to perform your error handling.  It's important to note that if you `map` over a `Failure` the lambda function you passed to `map` simply never gets called.
+
 ##### Either
+
 `map`ping over an `Either` is a bit different, because it's not clear which projection, `Left` or `Right`, that you would want `map` to operate on just from the nature of the type itself.  Therefore, in order to map over an `Either` instance, you need to first declare which projection, `Left` vs. `Right`, you want `map` to apply to.  This will be the case for most to all of the Collections-like methods implemented for `Either`.  This is cited as a design problem by the Scala community, and may be a topic of a later Scala article if the topic proves worth the research based on my own programming experiences down the road.  The main disadvantage I see to using the `Either` type, at the moment, is if you want to chain your collections methods, such as calling `map(_ * 2).map(_ > 2)`, I actually have to specify the `RightProjection` for each one because each of the collections methods are defined for the Projections of `Either`, but the functions return the `Either` type.
 
 Here's an example which illustrates this predicament:
+
 ```scala
 scala> val disjointUnion: Either[String, Int] = Right(5)
 disjointUnion: Either[String,Int] = Right(5)
@@ -1084,20 +1188,24 @@ scala> disjointUnion.right.map(_ * 2).map(_ > 5)
 scala> disjointUnion.right.map(_ * 2).right.map(_ > 5)
 res22: Product with Serializable with scala.util.Either[String,Boolean] = Right(true)
 ```
+
 You should also notice from the above example that our operations can give us back an `Either` that holds different types (in this case, the `Right` projection holds a `Boolean` instead of an `Int` after the `map` operations).
 
 Despite the mentioned problems, `map` still allows us to stay within our `Either` context, even if there's a bit more verbosity around it.  Note that `map`ping will not break if our `Either` instance happens to be the other projection.
 
 To illustrate by building on the above example:
+
 ```scala
 scala> disjointUnion.left.map(_ + " some more text")
 res23: Product with Serializable with scala.util.Either[String,Int] = Right(5)
 ```
 
 #### `flatten`
+
 Flatten for abstract datatypes works the same as it does for `List`s.  If I have nested instances of the same datatype, `flatten` will resolve the nesting so that I only have to deal with a single wrapping of the context of whatever type I'm working in.
 
 ##### `Option`
+
 Let's start with the `Option` type, again.  If you have a `Some(Some(value))`, typically, that nested `Some` isn't giving any additional contextual information about the type that's of any real use to you.  Even if that value is a `None`, for the operation you want to perform, you probably only care that at the end of the nesting, there is a `None` there to help you delegate to the program what should be done next.
 
 When using our scala-redis library, this could happen if we `get` a value from a Redis key and then use it to `get` a value from a different Redis key.
@@ -1168,10 +1276,163 @@ scala> nestedNone.flatten.foreach(println)
 scala>
 ```
 
-The above clearly shows the advantages of flattening out our nested abstract types.  It makes the code more concise and easier to understand and reason about, both for the initial implementer, and for the person the comes by later that needs to understand the code in order to work in it.  If we end up with nested structures, it's best to `flatten` them out to make the operations over the data contained within the datatype's context easier to reason about. Whether it's `Option`, `Try`, `Either`, or some other type, the concept is the same.
+The above shows the advantages of flattening out our nested abstract types.  It makes the code more concise and easier to understand and reason about, both for the initial implementer, and for the person the comes by later that needs to understand the code in order to work in it.  If we end up with nested structures, it's best to `flatten` them out to make the operations over the data contained within the datatype's context easier to reason about. Whether it's `Option`, `Try`, `Either`, or some other type, the concept is the same.
+
+*You may be wondering, what if I have different types nested within each other, like an Option inside of a Try?  That leads to a more advanced topic that we won't cover in this article called Monad Transformers.  Monad Transformers are not part of the core Scala API, but do exist in the ScalaZ library, and can be implemented manually using core Scala if needed.*
 
 ##### `Try`
+
+`flatten` for `Try` works pretty much the same as it does for `Option`.  Scala does not allow nested Failures, so it's really a lot like `Option`, which only allows nested `Some`s, except in the case of `Try`, we have to manage nested `Success`s instead.
+
+Here's a basic example of how `flatten`ning `Try`s works:
+
+```scala
+scala> import scala.util.{Try, Success, Failure}
+import scala.util.{Try, Success, Failure}
+
+scala> val tryMe: Try[String] = Failure(new Exception("oops"))
+tryMe: scala.util.Try[String] = Failure(java.lang.Exception: oops)
+
+scala> val tryTryMe: Try[Try[String]] = Failure(tryMe)
+<console>:12: error: type mismatch;
+ found   : scala.util.Try[String]
+ required: Throwable
+       val tryTryMe: Try[Try[String]] = Failure(tryMe)
+                                                ^
+
+scala> val tryTryMe: Try[Try[String]] = Success(tryMe)
+tryTryMe: scala.util.Try[scala.util.Try[String]] = Success(Failure(java.lang.Exception: oops))
+
+scala> tryTryMe.flatten
+res0: scala.util.Try[String] = Failure(java.lang.Exception: oops)
+
+scala> val tryTryMe0: Try[Try[String]] = Success(Success("hello world!"))
+tryTryMe0: scala.util.Try[scala.util.Try[String]] = Success(Success(hello world!))
+
+scala> tryTryMe0.flatten
+res1: scala.util.Try[String] = Success(hello world!)
+
+scala> tryTryMe0.flatten.map(println)
+hello world!
+res2: scala.util.Try[Unit] = Success(())
+```
+
+If you recall our example in the previous section on using `Try` to clean up the creation of services that depend on other services (section: *Introduction to Option, Try, and Either* > *Try*), you might already have an idea for how we could have written that code in a way that doesn't require us to rethrow exceptions.
+
+Here is the original code, for convenience:
+
+```scala
+import scala.util.{Try, Success, Failure}
+
+val configClient: Try[ImaginaryConfigurationClient] = Try(new ImaginaryConfigurationClient(appConfig.configurationServerAddress))
+val imaginaryClient: Try[ImaginaryServiceClient] = Try(new ImaginaryServiceClient(configClient.get))
+
+imaginaryClient match {
+  case Success(client) => if (client.connected) {
+    client.doThings()
+    client.destroy()
+  }
+  case Failure(e) => System.err.println(e)
+}
+
+if (configClient.isSuccess && configClient.get.connected) configClient.get.destroy()
+```
+
+If the `ImaginaryService` library had been written to return `Try` instances instead of throwing raw `Exceptions`, there is a good possibility that we could end up with nested `Try`s.  Using `flatten` can help us work with such code and keep it pretty clean and concise.
+
+Here's how the code would look without `flatten`:
+
+```scala
+val configClient: Try[ImaginaryConfigurationClient] = new ImaginaryConfigurationClient(appConfig.configurationServerAddress)
+val imaginaryClient: Try[Try[ImaginaryServiceClient]] = configClient.map(confClient => new ImaginaryServiceClient(confClient))
+
+imaginaryClient match {
+  case Success(imgClient) => imgClient match {
+    case Success(client) => if (client.connected) {
+      client.doThings()
+      client.destroy()
+    }
+    case Failure(e) => System.err.println(e)
+  }
+  case Failure(e) => System.err.println(e)
+}
+
+if (configCient.isSuccess && configClient.get.connected) configClient.get.destroy()
+```
+
+That code above is looking a bit ugly.  Let's clean it up with `flatten`.
+
+```scala
+val configClient: Try[ImaginaryConfigurationClient] = new ImaginaryConfigurationClient(appConfig.configurationServerAddress)
+val imaginaryClient: Try[Try[ImaginaryServiceClient]] = configClient.map(confClient => new ImaginaryServiceClient(confClient)).flatten
+
+imaginaryClient match {
+  case Success(client) => if (client.connected) {
+    client.doThings()
+    client.destroy()
+  }
+  case Failure(e) => System.err.println(e)
+}
+
+if (configCient.isSuccess && configClient.get.connected) configClient.get.destroy()
+```
+
+You might be saying, "hey, we should use `map`, here!", but if you look closely, `doThings()` could cause side-effects, and `destroy()` definitely does cause side-effects.  I bet if you recall (or review) what `foreach` and `flatMap` do, however, you can probably guess how we are going to continue cleaning up this example code.
+
+The last thing to note about `flatten` with `Try` is that, as with `Option`, the compiler will fail your build if you try to flatten a `Try` that is already as "flat" as it can be.  For `flatten` to be applicable, you need to have a `Try` nested in a `Try`, or else convert your datatypes so that the nesting can be resolved by the type system.
+
+For example, you could convert your `Try` to an `Option` if your outer type is an `Option` to get the types to resolve.
+
+```scala
+scala> val value: Option[Try[String]] = Some(Success("value"))
+value: Option[scala.util.Try[String]] = Some(Success(value))
+
+scala> value.map(_.toOption).flatten
+res37: Option[String] = Some(value)
+```
+
 ##### `Either`
+You may be surprized by this, but `Either` has no `flatten` function, nor does the `RightProjection` or `LeftProjection` of the `Either` type.  Let's take a look at an example to help illustrate the problem.
+
+```scala
+
+scala> val leftEither: Either[String, Int] = Left("three")
+leftEither: Either[String,Int] = Left(three)
+
+scala> val rightEither: Either[String, Int] = Right(3)
+rightEither: Either[String,Int] = Right(3)
+
+scala> val eitherLeftEither: Either[Either[String, Int], String] = Left(leftEither)
+eitherLeftEither: Either[Either[String,Int],String] = Left(Left(three))
+
+scala> val eitherRightEither: Either[Either[String, Int], String] = Left(rightEither)
+eitherRightEither: Either[Either[String,Int],String] = Left(Right(3))
+
+scala> val eitherEitherRight: Either[Either[String, Int], String] = Right("hello, this is weird")
+eitherEitherRight: Either[Either[String,Int],String] = Right(hello, this is weird)
+
+scala> leftEither.flatten
+<console>:16: error: value flatten is not a member of Either[String,Int]
+       leftEither.flatten
+                  ^
+
+scala> eitherLeftEither.flatten
+<console>:17: error: value flatten is not a member of Either[Either[String,Int],String]
+       eitherLeftEither.flatten
+                        ^
+
+scala> leftEither.left.flatten
+<console>:16: error: value flatten is not a member of scala.util.Either.LeftProjection[String,Int]
+       leftEither.left.flatten
+                       ^
+
+scala> eitherLeftEither.left.flatten
+<console>:17: error: value flatten is not a member of scala.util.Either.LeftProjection[Either[String,Int],String]
+       eitherLeftEither.left.flatten
+                             ^
+```
+
+Do you see what the problem is?  `Either` is unbiased, so when I try to `flatten` a `LeftProjection[Either[String, Int], String]`, should I prefer the `Left` type get back an `LeftProjection[String, String]` or the `Right` type and get back a `LeftProjection[Int, String]`?  The compiler can't read your mind, so `flatten` is just not possible on `Either` types.
 
 #### `flatMap`
 #### `foreach`
