@@ -1537,13 +1537,87 @@ scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key)).flatten
                                                                          ^
 ```
 
+##### Try
+
+##### Either
+
 #### `foreach`
+
+##### Option
+
+##### Try
+
+##### Either
+
 #### `exists`
+
+##### Option
+
+##### Try
+
+##### Either
+
 #### `filter`
+
+##### Option
+
+##### Try
+
+##### Either
+
 #### `forall`
+
+##### Option
+
+##### Try
+
+##### Either
+
 #### `zip`
+
+##### Option
+
+##### Try
+
+##### Either
+
 #### `unzip`
+
+##### Option
+
+##### Try
+
+##### Either
+
 #### `nonEmpty`
+
+##### Option
+
+##### Try
+
+##### Either
+
 #### `orElse`
+
+##### Option
+
+##### Try
+
+##### Either
+
 #### `getOrElse`
+
+##### Option
+
+##### Try
+
+##### Either
+
 #### Comprehensions
+
+##### Option
+
+##### Try
+
+##### Either
+
