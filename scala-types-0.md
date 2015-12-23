@@ -1204,7 +1204,7 @@ res23: Product with Serializable with scala.util.Either[String,Int] = Right(5)
 
 Flatten for abstract datatypes works the same as it does for `List`s.  If I have nested instances of the same datatype, `flatten` will resolve the nesting so that I only have to deal with a single wrapping of the context of whatever type I'm working in.
 
-##### `Option`
+##### Option
 
 Let's start with the `Option` type, again.  If you have a `Some(Some(value))`, typically, that nested `Some` isn't giving any additional contextual information about the type that's of any real use to you.  Even if that value is a `None`, for the operation you want to perform, you probably only care that at the end of the nesting, there is a `None` there to help you delegate to the program what should be done next.
 
@@ -1280,7 +1280,7 @@ The above shows the advantages of flattening out our nested abstract types.  It 
 
 *You may be wondering, what if I have different types nested within each other, like an Option inside of a Try?  That leads to a more advanced topic that we won't cover in this article called Monad Transformers.  Monad Transformers are not part of the core Scala API, but do exist in the ScalaZ library, and can be implemented manually using core Scala if needed.*
 
-##### `Try`
+##### Try
 
 `flatten` for `Try` works pretty much the same as it does for `Option`.  Scala does not allow nested Failures, so it's really a lot like `Option`, which only allows nested `Some`s, except in the case of `Try`, we have to manage nested `Success`s instead.
 
@@ -1391,7 +1391,8 @@ scala> value.map(_.toOption).flatten
 res37: Option[String] = Some(value)
 ```
 
-##### `Either`
+##### Either
+
 You may be surprized by this, but `Either` has no `flatten` function, nor does the `RightProjection` or `LeftProjection` of the `Either` type.  Let's take a look at an example to help illustrate the problem.
 
 ```scala
@@ -1461,6 +1462,81 @@ res20: scala.util.Either[String,Int] = Right(5)
 Note from the above that the types need to resolve properly so that if your outer `Either` happens to be the other projection from your join, that no information is lost.  In other words, to `flatten` your `Either`, your type can't be something like `Either[Either[String, Int], String]` because if you have a `Right` value and you do a `leftJoin`, the compiler can't know whether the `Right` type of the result should be an `Int` or a `String`.  If the inner-`Either` is a `Right`, then the result of `leftJoin` would be an `Either[String, Int]`, but if the outer `Either` is a `Right`, then the result of `leftJoin` would be an `Either[String, String]`.  Creating a version of `leftJoin` that could handle this would require leveraging dependent types, which is a more advanced topic and beyond the scope of this article.
 
 #### `flatMap`
+
+A lot of the time (probably even most of the time), you can avoid the need for using `flatten` by just using `flatMap` instead.  `flatMap` is just the same as calling `map(...).flatten`, so if the execution of your `map` lambda would case a nested data structure, you probably want to use `flatMap` (note, this is just the same is it is with the `List` type).
+
+##### Option
+
+Here is how someone might naively try to get a value out of Redis from a key that depends on the value from some other Redis key:
+
+```scala
+scala> val redisClient: RedisClient = new RedisClient("localhost", 6379)
+redisClient: com.redis.RedisClient = localhost:6379
+
+scala> redisClient.set("hello-key", "world-key")
+res0: Boolean = true
+
+scala> redisClient.set("world-key", "hello world!")
+res1: Boolean = true
+
+scala> redisClient.get("hello-key").map(key => redisClient.get(key))
+res28: Option[Option[String]] = Some(Some(hello, world!))
+```
+
+You can see that the above results in a nested `Option` based on the type signature of the response.  We can clean that up by using `flatMap` instead of `map`.
+
+In this example, I will demonstrate chaining `flatten` to the end of `map` before using `flatMap` to emphasize the equivalence of behavior between both implementations.
+
+```scala
+scala> redisClient.get("hello-key").map(key => redisClient.get(key)).flatten
+res29: Option[String] = Some(hello, world!)
+
+scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key))
+res30: Option[String] = Some(hello, world!)
+```
+
+But what if our nested value in the `Some` is a `None`?  Well, in that case, our result flattens out to be just `None`.  Below is an illustration:
+
+```scala
+scala> redisClient.del("world-key")
+res31: Option[Long] = Some(1)
+
+scala> redisClient.get("hello-key").map(key => redisClient.get(key))
+res32: Option[Option[String]] = Some(None)
+
+scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key))
+res33: Option[String] = None
+
+scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key)).flatMap(key => redisClient.del(key))
+res36: Option[Long] = None
+```
+
+The above also illustrates that if we have a non-nested `None`, `flatMap` will not blow-up on us, it will just be treated like a noop, just like `map`.  Interestingly, although you cannot call `flatten` an a non-nested `Option` (or other abstract type such as `Try`), you CAN safely call `flatMap` on an unnested `Option` and, in that case, it will behave just like a regular `map`.
+
+Here is an illustration:
+
+```scala
+scala> redisClient.set("world-key", "Hello, world!")
+res39: Boolean = true
+
+scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key))
+res40: Option[String] = Some(Hello, world!)
+
+scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key)).flatMap(key => redisClient.del(key))
+res41: Option[Long] = Some(0)
+
+scala> redisClient.set("world-key", "Hello, world!")
+res42: Boolean = true
+
+scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key))
+res43: Option[String] = Some(Hello, world!)
+
+scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key)).flatten
+<console>:16: error: Cannot prove that String <:< Option[B].
+       redisClient.get("hello-key").flatMap(key => redisClient.get(key)).flatten
+                                                                         ^
+```
+
 #### `foreach`
 #### `exists`
 #### `filter`
