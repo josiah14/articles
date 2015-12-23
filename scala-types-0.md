@@ -1364,7 +1364,7 @@ That code above is looking a bit ugly.  Let's clean it up with `flatten`.
 
 ```scala
 val configClient: Try[ImaginaryConfigurationClient] = new ImaginaryConfigurationClient(appConfig.configurationServerAddress)
-val imaginaryClient: Try[Try[ImaginaryServiceClient]] = configClient.map(confClient => new ImaginaryServiceClient(confClient)).flatten
+val imaginaryClient: Try[ImaginaryServiceClient] = configClient.map(confClient => new ImaginaryServiceClient(confClient)).flatten
 
 imaginaryClient match {
   case Success(client) => if (client.connected) {
@@ -1511,7 +1511,7 @@ scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key)).flatMap
 res36: Option[Long] = None
 ```
 
-The above also illustrates that if we have a non-nested `None`, `flatMap` will not blow-up on us, it will just be treated like a noop, just like `map`.  Interestingly, although you cannot call `flatten` an a non-nested `Option` (or other abstract type such as `Try`), you CAN safely call `flatMap` on an unnested `Option` and, in that case, it will behave just like a regular `map`.
+It is important to note that, like `flatten`, `flatMap` will cause a compile error if the type system determines that it was called on an operation that would not result in a nested `Option` structure.
 
 Here is an illustration:
 
@@ -1522,24 +1522,117 @@ res39: Boolean = true
 scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key))
 res40: Option[String] = Some(Hello, world!)
 
-scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key)).flatMap(key => redisClient.del(key))
-res41: Option[Long] = Some(0)
-
-scala> redisClient.set("world-key", "Hello, world!")
-res42: Boolean = true
-
-scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key))
-res43: Option[String] = Some(Hello, world!)
-
-scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key)).flatten
-<console>:16: error: Cannot prove that String <:< Option[B].
-       redisClient.get("hello-key").flatMap(key => redisClient.get(key)).flatten
-                                                                         ^
+scala> Try(redisClient.get("hello-key").flatMap(key => redisClient.get(key))).flatMap(println)
+<console>:16: error: type mismatch;
+ found   : () => Unit
+ required: Option[String] => scala.util.Try[?]
+       Try(redisClient.get("hello-key").flatMap(key => redisClient.get(key))).flatMap(println)
+                                                                                      ^
 ```
+
+The above example results in a type error because `println` does not return an `Option`, so the successful execution of the lambda in `flatMap` results in an `Option[Unit]`, which cannot be flattened any further, so `flatMap` doesn't make sense here.  In these cases, the type system is trying to tell you to use `map` instead.
 
 ##### Try
 
+As with other examples, `Try` works almost exactly the same as `Option`, except `flatMap` operates on `Success` values instead of `Some` values.
+
+Here's a short example to illustrate what mapping over a `Try` instance looks like.  We'll build on the previous `Try` example used for `flatten`:
+
+Here's the original code:
+
+```scala
+val configClient: Try[ImaginaryConfigurationClient] = new ImaginaryConfigurationClient(appConfig.configurationServerAddress)
+val imaginaryClient: Try[ImaginaryServiceClient] = configClient.map(confClient => new ImaginaryServiceClient(confClient)).flatten
+
+imaginaryClient match {
+  case Success(client) => if (client.connected) {
+    client.doThings()
+    client.destroy()
+  }
+  case Failure(e) => System.err.println(e)
+}
+
+if (configCient.isSuccess && configClient.get.connected) configClient.get.destroy()
+```
+
+This can be shortened a little to look like the following:
+
+```scala
+val configClient: Try[ImaginaryConfigurationClient] = new ImaginaryConfigurationClient(appConfig.configurationServerAddress)
+val imaginaryClient: Try[ImaginaryServiceClient] = configClient.flatMap(confClient => new ImaginaryServiceClient(confClient))
+
+imaginaryClient match {
+  case Success(client) => if (client.connected) {
+    client.doThings()
+    client.destroy()
+  }
+  case Failure(e) => System.err.println(e)
+}
+
+if (configCient.isSuccess && configClient.get.connected) configClient.get.destroy()
+```
+
+I'm also going to steal an example from the (Neophyte's Guide to Scala)[http://danielwestheide.com/blog/2012/12/26/the-neophytes-guide-to-scala-part-6-error-handling-with-try.html] to illustrate an instance that you will probably encounter more often - needing to nest a `Try` constructor for handling an exception inside of the `map` lambda of another `Try` object.
+
+Here's the naive implementation that results in a triple-nested `Try`:
+
+```scala
+import java.io.InputStream
+
+def inputStreamForURL(url: String): Try[Try[Try[InputStream]]] = Try(new URL(url)).map(u =>
+  Try(u.openConnection()).map(conn => Try(conn.getInputStream))
+)
+```
+
+And the equivalent clean-up:
+
+```scala
+import java.io.InputStream
+
+def inputStreamForURL(url: String): Try[InputStream] = Try(new URL(url)).flatMap(u =>
+  Try(u.openConnection()).flatMap(conn => Try(conn.getInputStream))
+)
+```
+
+`flatMap` on `Failure` instances works just like it does for `None` instances for `Option` types - it results in a noop and just gives you back the same `Failure`.  The same also goes for calling `flatMap` on `Try` instances that don't have a nested `Try` instance.  If you just have a `Success` that holds a normal value (something that is not a `Try`), the Scala type system will not let you use `flatMap` on operations that would not result in a nested `Try` structure.
+
 ##### Either
+
+`flatMap`ping over an `Either`, like for `map` and the `join` functions, requires you to specify the projection you want to operate on, first (`Left` or `Right`).
+
+Let's demonstrate this with a simple example:
+
+```scala
+scala> val eitherLeftEither: Either[Either[String,Int],Int] = Left(Left("hello"))
+eitherLeftEither: Either[Either[String,Int],Int] = Left(Left(hello))
+
+scala> eitherLeftEither.left.map(leftVal => leftVal.left.map(_ + ", world!")) // results in nested Either
+res62: Product with Serializable with scala.util.Either[Product with Serializable with scala.util.Either[String,Int],Int] = Left(Left(hello, world!))
+
+scala> eitherLeftEither.left.flatMap(leftVal => leftVal.left.map(_ + ", world!")) // results in unnested Either
+res63: scala.util.Either[String,Int] = Left(hello, world!)
+
+scala> val eitherLeftEither: Either[Either[String,Int],Int] = Left(Right(3))
+eitherLeftEither: Either[Either[String,Int],Int] = Left(Right(3))
+
+scala> eitherLeftEither.left.flatMap(leftVal => leftVal.left.map(_ + ", world!"))
+res64: scala.util.Either[String,Int] = Right(3)
+
+scala> eitherLeftEither.left.flatMap(leftVal => leftVal.right.map(_ + 5))
+res65: scala.util.Either[String,Int] = Right(8)
+
+scala> val eitherLeftEither: Either[Either[String,Int],Int] = Right(3)
+eitherLeftEither: Either[Either[String,Int],Int] = Right(3)
+
+scala> eitherLeftEither.right.flatMap(_ + 4)
+<console>:16: error: type mismatch;
+ found   : Int
+ required: scala.util.Either[?,?]
+       eitherLeftEither.right.flatMap(_ + 4)
+                                        ^
+```
+
+Either is a little different from `Try` and `Option`, but the same basic rules apply; you need to be actually performing an operation that could result in a nested structure for `flatMap` to make sense.  In the last trial where we try to `flatMap` on the `right` permutation, since our `Right` value doesn't hold an `Either`, the compiler throws a type error.
 
 #### `foreach`
 
@@ -1548,6 +1641,76 @@ scala> redisClient.get("hello-key").flatMap(key => redisClient.get(key)).flatten
 ##### Try
 
 ##### Either
+
+Now, remember this code from our intro to the `Either` type?
+
+```scala
+scala> import scala.util.{Try, Success, Failure, Either, Left, Right}
+import scala.util.{Try, Success, Failure, Either, Left, Right}
+
+scala> import org.apache.http.impl.client.DefaultHttpClient
+import org.apache.http.impl.client.DefaultHttpClient
+
+scala> import org.apache.http.client.methods.{HttpGet, CloseableHttpResponse}
+import org.apache.http.client.methods.{HttpGet, CloseableHttpResponse}
+
+scala> import org.apache.http.message.BasicStatusLine
+import org.apache.http.message.BasicStatusLine
+
+scala> import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
+import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
+
+scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
+httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
+
+scala> def handleHttpResponse(httpResponse: Try[CloseableHttpResponse]): Try[Either[StatusLine, HttpEntity]] = httpResponse match {
+     |   case Success(response) =>
+     |     val statusLine = response.getStatusLine()
+     |     statusLine.getStatusCode() match {
+     |       case code if 100 until 227 contains code => Success(Right(response.getEntity()))
+     |       case code if 300 until 500 contains code => Success(Left(statusLine))
+     |       case code => Failure(new Exception("Got status code: " + code.toString + " with message: " + statusLine.getReasonPhrase()))
+     |     }
+     |   case Failure(e) => Failure(e)
+     | }
+handleHttpResponse: (httpResponse: scala.util.Try[org.apache.http.client.methods.CloseableHttpResponse])scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]
+
+scala> val httpResponse: Try[Either[StatusLine, HttpEntity]] = handleHttpResponse(Try(httpClient.execute(new HttpGet("http://www.google.com"))))
+Dec 11, 2015 1:35:21 PM org.apache.http.impl.client.DefaultHttpClient tryConnect
+httpResponse: scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]] = Failure(java.net.NoRouteToHostException: No route to host)
+
+scala> httpClient.getConnectionManager().shutdown()
+
+scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
+httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
+
+scala> val httpResponse: Try[Either[StatusLine, HttpEntity]] = handleHttpResponse(Try(httpClient.execute(new HttpGet("http://localhost:3000"))))
+Dec 11, 2015 1:39:41 PM org.apache.http.client.protocol.ResponseProcessCookies processCookies
+httpResponse: scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]] = Success(Right(org.apache.http.conn.BasicManagedEntity@10a15612))
+
+scala> val response = httpResponse.get
+response: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@3b2de156)
+
+scala> response match {
+     |   case Right(httpEntity) => println(httpEntity.getContent().read())
+     |   case Left(statusLine) => println(statusLine.getReasonPhrase())
+     | }
+60
+
+scala> response
+res21: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@3b2de156)
+
+scala> response.left.get
+java.util.NoSuchElementException: Either.left.value on Right
+  at scala.util.Either$LeftProjection.get(Either.scala:289)
+  ... 43 elided
+
+scala> response.right.get
+res23: org.apache.http.HttpEntity = org.apache.http.conn.BasicManagedEntity@3b2de156
+
+scala> response.right.get.getContent().read()
+res24: Int = 33
+```
 
 #### `exists`
 
