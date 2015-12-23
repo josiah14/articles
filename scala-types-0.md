@@ -1636,13 +1636,60 @@ Either is a little different from `Try` and `Option`, but the same basic rules a
 
 #### `foreach`
 
+`foreach` works just like `map`, except for it doesn't return anything.  This function is good for executing operations that cause side-effects over the value in the data type we are working with.  Since this is the only real difference between `foreach` and `map`, I'm just going to provide examples for each type.  When we get to the `Either` type, recall that we have to specify a permutation before `foreach` can be called.  It's also worth noting that making sure you use `foreach` in concurrent systems is especially important because `map` is not designed to handle side-effects.  If you try to use `map` for lambdas with side-effects, you may encounter some unpredictable results in your code.
+
 ##### Option
+
+```scala
+scala> val opt: Option[String] = Some("hello")
+opt: Option[String] = Some(hello)
+
+scala> opt.map(_ + ", world!").foreach(println)
+hello, world!
+
+scala> opt.foreach { helloString =>
+     |   println(helloString)
+     |   println(helloString + ", Again!")
+     | }
+hello
+hello, Again!
+
+scala> None.foreach(println)
+
+scala>
+```
+
+Again, not the lack of a return value on `foreach`.
 
 ##### Try
 
+```scala
+scala> val aFailure: Try[String] = Failure(new Exception("oops"))
+aFailure: scala.util.Try[String] = Failure(java.lang.Exception: oops)
+
+scala> val aSuccess: Try[String] = Success("hello")
+aSuccess: scala.util.Try[String] = Success(hello)
+
+scala> aSuccess.map(_ + ", world!").foreach(println)
+hello, world!
+
+scala> aFailure.map(_ + ", world!").foreach(println)
+
+scala> aSuccess.map(_ + ", world!").foreach { helloStr =>
+     |   println(helloStr)
+     |   println(helloStr + ", again!")
+     | }
+hello, world!
+hello, world!, again!
+
+scala>
+```
+
 ##### Either
 
-Now, remember this code from our intro to the `Either` type?
+##### Mapping and Flattening with Multiple Types
+
+Now, remember this code from our intro to the `Either` type? Let's try and refactor it a little bit using the functions we've learned about.
 
 ```scala
 scala> import scala.util.{Try, Success, Failure, Either, Left, Right}
@@ -1663,15 +1710,15 @@ import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
 scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
 httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
 
-scala> def handleHttpResponse(httpResponse: Try[CloseableHttpResponse]): Try[Either[StatusLine, HttpEntity]] = httpResponse match {
-     |   case Success(response) =>
+scala> def handleHttpResponse(httpResponse: Try[CloseableHttpResponse]): Try[Either[StatusLine, HttpEntity]] = {
+     |   httpResponse.map { response =>
      |     val statusLine = response.getStatusLine()
      |     statusLine.getStatusCode() match {
-     |       case code if 100 until 227 contains code => Success(Right(response.getEntity()))
-     |       case code if 300 until 500 contains code => Success(Left(statusLine))
-     |       case code => Failure(new Exception("Got status code: " + code.toString + " with message: " + statusLine.getReasonPhrase()))
+     |       case code if 100 until 227 contains code => Right(response.getEntity())
+     |       case code if 300 until 500 contains code => Left(statusLine)
+     |       case code => throw new Exception("Got status code: " + code.toString + " with message: " + statusLine.getReasonPhrase())
      |     }
-     |   case Failure(e) => Failure(e)
+     |   }
      | }
 handleHttpResponse: (httpResponse: scala.util.Try[org.apache.http.client.methods.CloseableHttpResponse])scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]
 
@@ -1688,28 +1735,11 @@ scala> val httpResponse: Try[Either[StatusLine, HttpEntity]] = handleHttpRespons
 Dec 11, 2015 1:39:41 PM org.apache.http.client.protocol.ResponseProcessCookies processCookies
 httpResponse: scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]] = Success(Right(org.apache.http.conn.BasicManagedEntity@10a15612))
 
-scala> val response = httpResponse.get
-response: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@3b2de156)
-
-scala> response match {
-     |   case Right(httpEntity) => println(httpEntity.getContent().read())
-     |   case Left(statusLine) => println(statusLine.getReasonPhrase())
+scala> val response = httpResponse.foreach { response =>
+     |   response.right.map(\_.getContent().read()).right.foreach(println)
+     |   response.left.map(\_.getReasonPhrase()).left.foreach(println)
      | }
 60
-
-scala> response
-res21: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@3b2de156)
-
-scala> response.left.get
-java.util.NoSuchElementException: Either.left.value on Right
-  at scala.util.Either$LeftProjection.get(Either.scala:289)
-  ... 43 elided
-
-scala> response.right.get
-res23: org.apache.http.HttpEntity = org.apache.http.conn.BasicManagedEntity@3b2de156
-
-scala> response.right.get.getContent().read()
-res24: Int = 33
 ```
 
 #### `exists`
