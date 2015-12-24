@@ -721,11 +721,11 @@ import scala.util.Failure
 scala> val redisClient: Try[RedisClient] = Try(new RedisClient("localhost", 6379))
 redisClient: scala.util.Try[com.redis.RedisClient] = Success(localhost:6379)
 
-scala> val valueAtKey: Try[Option[String]] = redisClient match {
+scala> val valueAtKey: Try[[String]] = redisClient match {
      |   case Success(client) => Try(client.get("test-key"))
      |   case Failure(e) => Failure(e)
      | }
-valueAtKey: scala.util.Try[Option[String]] = Failure(java.lang.RuntimeException: java.lang.StackOverflowError)
+valueAtKey: scala.util.Try[[String]] = Failure(java.lang.RuntimeException: java.lang.StackOverflowError)
 
 scala> valueAtKey match {
      |   case Success(value) => println(value)
@@ -853,9 +853,9 @@ The above code will behave exactly the same as the previous code block on the su
 
 Some people out there in Google-land will tell you that `Either` is less preferred or inferior to the `Try` type and normally indicates a code-smell.  I'm not ready, yet, to draw that particular conclusion, but there is a distinction that needs to be made in purpose between `Try` and `Either` so that you know when to use each and how to design your APIs.
 
-The main thing to realize is that `Try` is meant specifically for the purpose of handling `Exception`s.  Intelligently using `Either` vs. `Try`, therefore, requires some discipline around when you choose to throw `Exceptions` vs. just notify the application that some sort of error or issue that is expected to be common and non-critical arises.  For the latter case, `Either` is a better choice than `Try`.  The other main purpose for `Either` is when you have a function which may return one of two types, but neither type returned necessarily indicates an error.  Such cases as these are fairly uncommon, but they do arise from time to time, so it's good to know that the `Either` type is there if you ever run into such a scenario where you DO need a disjoint union as your return type.  Most of the time, though, it helps to think of `Either` as an alternative to `Option` that returns some information about why you have a `None` when a `None` occurs, rather than just being given back `None` with no explanation.
+The main thing to realize is that `Try` is meant specifically for the purpose of handling `Exception`s.  Intelligently using `Either` vs. `Try`, therefore, requires some discipline around when you choose to throw `Exceptions` vs. just notify the application that some sort of error or issue that is expected to be common and non-critical arises.  For the latter case, `Either` is a better choice than `Try`.  The other main purpose for `Either` is when you have a function which may return one of two types, but neither type returned necessarily indicates an error.  Such cases as these are fairly uncommon, but they do arise from time to time, so it's good to know that the `Either` type is there if you ever run into such a scenario where you DO need a disjoint union as your return type.  Most of the time, though, it helps to think of `Either` as an alternative to `` that returns some information about why you have a `None` when a `None` occurs, rather than just being given back `None` with no explanation.
 
-In the case of the scala-redis client's `get` method that we looked at previously, `Option` was fine because there's really only a few reasons for why you wouldn't get a value back from a key - either the key doesn't exist, or it does exist but it's value is `null`.  Either way, from a programming standpoint, it doesn't really matter most times what caused `get` to return `None`, what matters is that we know there is no value at that key.
+In the case of the scala-redis client's `get` method that we looked at previously, `` was fine because there's really only a few reasons for why you wouldn't get a value back from a key - either the key doesn't exist, or it does exist but it's value is `null`.  Either way, from a programming standpoint, it doesn't really matter most times what caused `get` to return `None`, what matters is that we know there is no value at that key.
 
 A scenario for `Either` might be for handling HTTP responses.  `Right` value responses would be HTTP codes in the 100 and 200 ranges, and `Left` value responses would be HTTP codes in the 300 - 400 (although I could imagine arguments for a `Right` value'd 300s response where the redirect is expected), and perhaps 500 range codes producing an exception since they indicate unusual problems such as the Service being unavailable.
 
@@ -906,7 +906,7 @@ httpResponse: scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.ap
 
 So, you can see in the above, anytime I get a response back, excluding 500 range HTTP status codes, I send back some data from the HTTP response.  The difference here, from what you might be traditionally used to with Java and other languages that don't have something akin to the `Either` type, is that `Either` allows us to indicate a kind of non-critical error and even to provide a different kind of data/type back when these less successful situations occur.  However, the above example still demonstrates that there is still an appropriate time to use `Try` and pass back an exception for errors that one would not expect to occur.  My attempt to hit "http://www.google.com" returns a `Failure` because I was behind a proxy which prevented the `httpClient` from being able to reach that address.  However, I had no problem talking to the web server I had running on "http://localhost:3000" at the time, so it returned a `Success[Right[HttpEntity]]` since that address on my web server returns a 200 status code upon success.  Had the "http://localhost:3000" route returned some other code that was outside of the 100-227 range, such as a 307 code for a Temporary Redirect, I would have gotten back a `Success[Left[StatusLine]]`, and I would have been able to recover the relevant information about why I got that code since the `StatusLine` type contains the "reason" sent with HTTP responses for why a certain error code was received, as well as the status code itself and even the protocol version information.  Had the response been a status code in the 500 range, I would have gotten back a `Failure[Exception]` with a message containing the status code and reason provided from the server for why the request failed.
 
-Now, as you read this, you might think that this is all very interesting, but what happens when I want to get the value out of my `Either`?  I can't just `get` it like I can for `Option` and `Try` because it's not obvious that `Right` is necessarily the only truly successful value.  `Either` could be used to return a disjoint union where both possible response types are equally successful value. So, let's look at some examples for how to get the value out of our `Either`.
+Now, as you read this, you might think that this is all very interesting, but what happens when I want to get the value out of my `Either`?  I can't just `get` it like I can for `` and `Try` because it's not obvious that `Right` is necessarily the only truly successful value.  `Either` could be used to return a disjoint union where both possible response types are equally successful value. So, let's look at some examples for how to get the value out of our `Either`.
 
 The most obvious way to get our `Either` values is to just pattern match on the `Either` type.  Building on the last code sample, let's get the value out of our `httpResponse` and do something with it. 
 
@@ -950,17 +950,17 @@ Most of the time with `Either`, pattern matching on the value will be the simple
 
 ### Higher-kinded Types as Collections
 
-Knowing the basics of the previous section which introduces `Option`, `Try`, and `Either` already gives us a lot of power.  However, there is still even more that we can do with these types than simply pattern match on them and used them as a type-safe way of ensuring proper error handling is written into the software.  As it turns out, all of those functions that were introduced way back in the Prerequisites > Collections section are also part of `Option`, `Try`, and `Either`.  These functions provide a way to interact with the value inside one of these three types without requiring the programmer to extract the value out of the context of the type.  There is some value in this because it allows the programmer to work with the type before handling the error path, or the unhappy path.  This way, the sad path and the happy path can be defined in full, but also separately from each other, so that it's easy to see what the purpose of the code is without all of the error handling noise cluttering up your happy path, and without the happy path obscuring your error handling strategy.  This might not make much sense to you, yet, but I'm confident that, as we go through the various collections functions and how to use them with these higher-kinded types, you will see how working with these types can simplify your code and make it easier to decouple your error paths from the rest of your code.
+Knowing the basics of the previous section which introduces ``, `Try`, and `Either` already gives us a lot of power.  However, there is still even more that we can do with these types than simply pattern match on them and used them as a type-safe way of ensuring proper error handling is written into the software.  As it turns out, all of those functions that were introduced way back in the Prerequisites > Collections section are also part of `Option`, `Try`, and `Either`.  These functions provide a way to interact with the value inside one of these three types without requiring the programmer to extract the value out of the context of the type.  There is some value in this because it allows the programmer to work with the type before handling the error path, or the unhappy path.  This way, the sad path and the happy path can be defined in full, but also separately from each other, so that it's easy to see what the purpose of the code is without all of the error handling noise cluttering up your happy path, and without the happy path obscuring your error handling strategy.  This might not make much sense to you, yet, but I'm confident that, as we go through the various collections functions and how to use them with these higher-kinded types, you will see how working with these types can simplify your code and make it easier to decouple your error paths from the rest of your code.
 
-To introduce the collections functions and how they are used in the context of each type, my intention is to start with (what I perceive to be) the simpler functions, and then dig into the more complex (and often more handy) functions at the end, closing with comprehensions.  I'll also introduce using each function starting with the easiest type to work with, `Option`, then move on to `Try`, and then finish with `Either` (because `Either` is a sort of redheaded step-child among the three).
+To introduce the collections functions and how they are used in the context of each type, my intention is to start with (what I perceive to be) the simpler functions, and then dig into the more complex (and often more handy) functions at the end, closing with comprehensions.  I'll also introduce using each function starting with the easiest type to work with, ``, then move on to `Try`, and then finish with `Either` (because `Either` is a sort of redheaded step-child among the three).
 
 #### `map`
 
-If you think of `map` in terms of a `List`, it applies a mutation (a function that doesn't cause side-effects) to all the items in the `List` without removing them from the `List` context so that the result is a new `List` of values representing the result of the mutation on each `List` item.  Map behaves just the same with our higher-kinded data types.  It will apply some mutation to the value wrapped by the context of our type (whether it's `Option`, `Try`, or `Either`), and give us back the result without taking us out of that context.  Let's make this clearer through some examples of using `map` on each of the types.
+If you think of `map` in terms of a `List`, it applies a mutation (a function that doesn't cause side-effects) to all the items in the `List` without removing them from the `List` context so that the result is a new `List` of values representing the result of the mutation on each `List` item.  Map behaves just the same with our higher-kinded data types.  It will apply some mutation to the value wrapped by the context of our type (whether it's ``, `Try`, or `Either`), and give us back the result without taking us out of that context.  Let's make this clearer through some examples of using `map` on each of the types.
 
-##### Option
+##### 
 
-`Option` is what I think to be the most straightforward of all the other types we are looking at in this article.  You can think of `Option` as a special kind of `List` that holds at most one value, but might also be `None`.  If you `map` over an instance of `None`, you will just get a `None` back.  If you `map` over an instance of `Some`, `map` will apply the lambda argument (a.k.a. mutation) you supply it with to the value inside of the `Some` and give you back a new `Some` which holds the result of applying the mutation.  The advantage to `Option` being, as was already mentioned, that you are required to provide a case for the `None` possibility or else explicitly choose to ignore the type and try to get the value anyway (the latter being generally discouraged).
+`` is what I think to be the most straightforward of all the other types we are looking at in this article.  You can think of `Option` as a special kind of `List` that holds at most one value, but might also be `None`.  If you `map` over an instance of `None`, you will just get a `None` back.  If you `map` over an instance of `Some`, `map` will apply the lambda argument (a.k.a. mutation) you supply it with to the value inside of the `Some` and give you back a new `Some` which holds the result of applying the mutation.  The advantage to `Option` being, as was already mentioned, that you are required to provide a case for the `None` possibility or else explicitly choose to ignore the type and try to get the value anyway (the latter being generally discouraged).
 
 Let's `get` a value out of Redis and mutate its value to create a silly "hello world" application.
 
@@ -975,13 +975,13 @@ scala> redisClient.set("hello-world-key", "Hello")
 res59: Boolean = true
 
 scala> redisClient.get("hello-world-key")
-res60: Option[String] = Some(Hello)
+res60: [String] = Some(Hello)
 
 scala> val hello = redisClient.get("hello-world-key")
-hello: Option[String] = Some(Hello)
+hello: [String] = Some(Hello)
 
 scala> val helloWorld = hello.map(_ + ", world!")
-helloWorld: Option[String] = Some(Hello, world!)
+helloWorld: [String] = Some(Hello, world!)
 
 scala> helloWorld match {
      | case Some(statement) => println(statement)
@@ -990,10 +990,10 @@ scala> helloWorld match {
 Hello, world!
 
 scala> val oops = redisClient.get("not-a-key")
-oops: Option[String] = None
+oops: [String] = None
 
 scala> val oopsWorld = oops.map(_ + ", world!")
-oopsWorld: Option[String] = None
+oopsWorld: [String] = None
 
 scala> oopsWorld match {
      | case Some(statement) => println(statement)
@@ -1002,7 +1002,7 @@ scala> oopsWorld match {
 The key, not-a-key, did not contain a value upon access
 ```
 
-If you are clever, you may recognize the advantage to using `map` as we did above.  `map` allows us to work with the value in our `Option` under the assumption that it's a successful`Some` value, and then check separately when we are done whether it's a `None` and handle that case on its own.  The following code sample from the REPL makes it more obvious how this is an advantage. 
+If you are clever, you may recognize the advantage to using `map` as we did above.  `map` allows us to work with the value in our `` under the assumption that it's a successful`Some` value, and then check separately when we are done whether it's a `None` and handle that case on its own.  The following code sample from the REPL makes it more obvious how this is an advantage. 
 
 ```scala
 scala> import com.redis._
@@ -1012,67 +1012,67 @@ scala> val redisClient: redisClient = new RedisClient("localhost", 6379)
 res75: com.redis.RedisClient = localhost:6379
 
 scala> redisClient.rpush("queue", 1,2,3,4,5,6)
-res79: Option[Long] = Some(6)
+res79: [Long] = Some(6)
 
-scala> val count: Option[Long] = redisClient.rpush("queue", 1, 2, 3, 4, 5, 6)
-count: Option[Long] = Some(6)
+scala> val count: [Long] = redisClient.rpush("queue", 1, 2, 3, 4, 5, 6)
+count: [Long] = Some(6)
 
-scala> val items: List[Option[Int]] = count match {
+scala> val items: List[[Int]] = count match {
      |   case Some(n) => (1 to n.toInt map { _ => redisClient.lpop("queue").map(num => num.toInt) }).toList
      |   case None => List()
      | }
-items: List[Option[Int]] = List(Some(1), Some(2), Some(3), Some(4), Some(5), Some(6))
+items: List[[Int]] = List(Some(1), Some(2), Some(3), Some(4), Some(5), Some(6))
 
-scala> val items: List[Option[Int]] = count match {
+scala> val items: List[[Int]] = count match {
      |   case Some(n) => (1 to n.toInt map { _ => redisClient.lpop("queue").map(num => num.toInt) }).toList
      |   case None => List()
      | }
-items: List[Option[Int]] = List(None, None, None, None, None, None)
+items: List[[Int]] = List(None, None, None, None, None, None)
 
-scala> val count0: Option[Long] = None
-count0: Option[Long] = None
+scala> val count0: [Long] = None
+count0: [Long] = None
 
-scala> val items0: List[Option[Int]] = count0 match {
+scala> val items0: List[[Int]] = count0 match {
      |   case Some(n) => (1 to n.toInt map { _ => redisClient.lpop("queue").map(num => num.toInt) }).toList
      |   case None => List()
      | }
-items0: List[Option[Int]] = List()
+items0: List[[Int]] = List()
 
 scala> items
-res89: List[Option[Int]] = List(None, None, None, None, None, None)
+res89: List[[Int]] = List(None, None, None, None, None, None)
 
 scala> items.reduce((optnA, optnB) => (optnA, optnB) match {
      |   case (Some(a), Some(b)) => Some(a + b)
      |   case _ => None
      | })
-res91: Option[Int] = None
+res91: [Int] = None
 
 scala> redisClient.rpush("queue", 1,2,3,4,5,6)
-res92: Option[Long] = Some(6)
+res92: [Long] = Some(6)
 
-scala> val items: List[Option[Int]] = count match {
+scala> val items: List[[Int]] = count match {
      |   case Some(n) => (1 to n.toInt map { _ => redisClient.lpop("queue").map(num => num.toInt) }).toList
      |   case None => List()
      | }
-items: List[Option[Int]] = List(Some(1), Some(2), Some(3), Some(4), Some(5), Some(6))
+items: List[[Int]] = List(Some(1), Some(2), Some(3), Some(4), Some(5), Some(6))
 
 scala> items.reduce((optnA, optnB) => (optnA, optnB) match {
      |   case (Some(a), Some(b)) => Some(a + b)
      |   case _ => None
      | })
-res94: Option[Int] = Some(21)
+res94: [Int] = Some(21)
 
 scala> None :: items
-res95: List[Option[Int]] = List(None, Some(1), Some(2), Some(3), Some(4), Some(5), Some(6))
+res95: List[[Int]] = List(None, Some(1), Some(2), Some(3), Some(4), Some(5), Some(6))
 
 scala> (None :: items).reduce((optnA, optnB) => (optnA, optnB) match {
      |   case (Some(a), Some(b)) => Some(a + b)
      |   case _ => None
      | })
-res96: Option[Int] = None
+res96: [Int] = None
 ```
 
-You can see in the above code sample how we can just use `map` to convert our values returned from Redis from a `String` to an `Int` without leaving the `Option` context.  If Redis returned nothing, it's no big deal, because `map` just behaves like a noop in that case and leaves the `None` value as is.  We then deal with potential `None` values from Redis later in the `reduce` function by saying, hey, if I encounter a `None`, the value of the entire computation is `None`.  However, I could have also written my reduce as follows, and it would have been equally valid, from a theoretical standpoint.  Which implementation you would want depends on your particular needs at the time.
+You can see in the above code sample how we can just use `map` to convert our values returned from Redis from a `String` to an `Int` without leaving the `` context.  If Redis returned nothing, it's no big deal, because `map` just behaves like a noop in that case and leaves the `None` value as is.  We then deal with potential `None` values from Redis later in the `reduce` function by saying, hey, if I encounter a `None`, the value of the entire computation is `None`.  However, I could have also written my reduce as follows, and it would have been equally valid, from a theoretical standpoint.  Which implementation you would want depends on your particular needs at the time.
 
 ```scala
 scala> (None :: items).reduce((optnA, optnB) => (optnA, optnB) match {
@@ -1081,14 +1081,14 @@ scala> (None :: items).reduce((optnA, optnB) => (optnA, optnB) match {
      |   case (some @ Some(a), None) => some
      |   case (None, None) => None
      | })
-res98: Option[Int] = Some(21)
+res98: [Int] = Some(21)
 ```
 
-So, hopefully the above examples help you see the value of using `map` when it isn't necessarily advantageous, yet, to handle our `None` value(s) for our `Option`(s).
+So, hopefully the above examples help you see the value of using `map` when it isn't necessarily advantageous, yet, to handle our `None` value(s) for our ``(s).
 
 ##### Try
 
-For `Try`, `map` works essentially the same way as it does for `Option`, except that it will operates on `Success` values instead of `Some` values.  The idea is the same; if we are not ready to evaluate for exceptions, and just want to continue under the assumption that our `Try`s are `Success`es, we can use `map` and evaluate the results later.
+For `Try`, `map` works essentially the same way as it does for ``, except that it will operates on `Success` values instead of `Some` values.  The idea is the same; if we are not ready to evaluate for exceptions, and just want to continue under the assumption that our `Try`s are `Success`es, we can use `map` and evaluate the results later.
 
 Let's look at some examples of working with Redis in a way that handles potential `Exception`s.
 
@@ -1102,22 +1102,22 @@ import com.redis._
 scala> val redisClient: RedisClient = new RedisClient("localhost", 6379)
 redisClient: com.redis.RedisClient = localhost:6379
 
-scala> val count: Try[Option[Long]] = Try(redisClient.rpush("queue", 1,2,3,4,5,6))
-count: scala.util.Try[Option[Long]] = Success(Some(6))
+scala> val count: Try[[Long]] = Try(redisClient.rpush("queue", 1,2,3,4,5,6))
+count: scala.util.Try[[Long]] = Success(Some(6))
 
-scala> val items: Try[List[Option[Int]]] = count.map(c => c match {
+scala> val items: Try[List[[Int]]] = count.map(c => c match {
      |   case Some(n) => (1 to n.toInt map { _ => redisClient.lpop("queue").map(num => num.toInt) }).toList
      |   case None => List()
      | })
-items: scala.util.Try[List[Option[Int]]] = Success(List(Some(1), Some(2), Some(3), Some(4), Some(5), Some(6)))
+items: scala.util.Try[List[[Int]]] = Success(List(Some(1), Some(2), Some(3), Some(4), Some(5), Some(6)))
 
-scala> val result: Try[Option[Int]] = items.map(None :: _).map(optns => optns.reduce((optnA, optnB) => (optnA, optnB) match {
+scala> val result: Try[[Int]] = items.map(None :: _).map(optns => optns.reduce((optnA, optnB) => (optnA, optnB) match {
      |   case (Some(a), Some(b)) => Some(a + b)
      |   case (None, some @ Some(b)) => some
      |   case (some @ Some(a), None) => some
      |   case _ => None
      | }))
-result: scala.util.Try[Option[Int]] = Success(Some(21))
+result: scala.util.Try[[Int]] = Success(Some(21))
 
 scala> result.map({
      |   case Some(n) => println(n)
@@ -1156,7 +1156,7 @@ scala> val r: Try[RedisClient] = Try(new RedisClient("localhost", 6379))
 r: scala.util.Try[com.redis.RedisClient] = Success(localhost:6379)
 
 scala> r.map(_.get("hello-key"))
-res27: scala.util.Try[Option[String]] = Success(Some(hello-key))
+res27: scala.util.Try[[String]] = Success(Some(hello-key))
 
 scala> r.map(_ => throw new Exception("simulate a second failure"))
 res30: scala.util.Try[Nothing] = Failure(java.lang.Exception: simulate failure)
@@ -1204,9 +1204,9 @@ res23: Product with Serializable with scala.util.Either[String,Int] = Right(5)
 
 Flatten for abstract datatypes works the same as it does for `List`s.  If I have nested instances of the same datatype, `flatten` will resolve the nesting so that I only have to deal with a single wrapping of the context of whatever type I'm working in.
 
-##### Option
+##### 
 
-Let's start with the `Option` type, again.  If you have a `Some(Some(value))`, typically, that nested `Some` isn't giving any additional contextual information about the type that's of any real use to you.  Even if that value is a `None`, for the operation you want to perform, you probably only care that at the end of the nesting, there is a `None` there to help you delegate to the program what should be done next.
+Let's start with the `` type, again.  If you have a `Some(Some(value))`, typically, that nested `Some` isn't giving any additional contextual information about the type that's of any real use to you.  Even if that value is a `None`, for the operation you want to perform, you probably only care that at the end of the nesting, there is a `None` there to help you delegate to the program what should be done next.
 
 When using our scala-redis library, this could happen if we `get` a value from a Redis key and then use it to `get` a value from a different Redis key.
 
@@ -1225,39 +1225,39 @@ res0: Boolean = true
 scala> redisClient.set("world-key", "hello world!")
 res1: Boolean = true
 
-scala> val worldKey: Option[String] = redisClient.get("hello-key")
-worldKey: Option[String] = Some(world-key)
+scala> val worldKey: [String] = redisClient.get("hello-key")
+worldKey: [String] = Some(world-key)
 
-scala> val helloWorldValue: Option[Option[String]] = worldKey.map(redisClient.get(_))
-helloWorldValue: Option[Option[String]] = Some(Some(hello world!))
+scala> val helloWorldValue: [Option[String]] = worldKey.map(redisClient.get(_))
+helloWorldValue: [Option[String]] = Some(Some(hello world!))
 
-scala> val flatHelloWorldValue: Option[String] = helloWorldValue.flatten
-flatHelloWorldValue: Option[String] = Some(hello world!)
+scala> val flatHelloWorldValue: [String] = helloWorldValue.flatten
+flatHelloWorldValue: [String] = Some(hello world!)
 
 scala>
 
-scala> val none: Option[String] = redisClient.get("not-a-key")
-none: Option[String] = None
+scala> val none: [String] = redisClient.get("not-a-key")
+none: [String] = None
 
-scala> val stillNone: Option[Option[String]] = none.map(redisClient.get(_))
-stillNone: Option[Option[String]] = None
+scala> val stillNone: [Option[String]] = none.map(redisClient.get(_))
+stillNone: [Option[String]] = None
 
 scala> stillNone.flatten
-res2: Option[String] = None
+res2: [String] = None
 
 scala>
 
 scala> redisClient.del("world-key")
-res7: Option[Long] = Some(1)
+res7: [Long] = Some(1)
 
 scala> redisClient.get("world-key")
-res8: Option[String] = None
+res8: [String] = None
 
-scala> val nestedNone: Option[Option[String]] = worldKey.map(redisClient.get(_))
-nestedNone: Option[Option[String]] = Some(None)
+scala> val nestedNone: [Option[String]] = worldKey.map(redisClient.get(_))
+nestedNone: [Option[String]] = Some(None)
 
 scala> nestedNone.flatten
-res9: Option[String] = None
+res9: [String] = None
 
 scala> flatHelloWorldValue.foreach(println)
 hello world!
@@ -1276,13 +1276,13 @@ scala> nestedNone.flatten.foreach(println)
 scala>
 ```
 
-The above shows the advantages of flattening out our nested abstract types.  It makes the code more concise and easier to understand and reason about, both for the initial implementer, and for the person the comes by later that needs to understand the code in order to work in it.  If we end up with nested structures, it's best to `flatten` them out to make the operations over the data contained within the datatype's context easier to reason about. Whether it's `Option`, `Try`, `Either`, or some other type, the concept is the same.
+The above shows the advantages of flattening out our nested abstract types.  It makes the code more concise and easier to understand and reason about, both for the initial implementer, and for the person the comes by later that needs to understand the code in order to work in it.  If we end up with nested structures, it's best to `flatten` them out to make the operations over the data contained within the datatype's context easier to reason about. Whether it's ``, `Try`, `Either`, or some other type, the concept is the same.
 
-*You may be wondering, what if I have different types nested within each other, like an Option inside of a Try?  That leads to a more advanced topic that we won't cover in this article called Monad Transformers.  Monad Transformers are not part of the core Scala API, but do exist in the ScalaZ library, and can be implemented manually using core Scala if needed.*
+*You may be wondering, what if I have different types nested within each other, like an  inside of a Try?  That leads to a more advanced topic that we won't cover in this article called Monad Transformers.  Monad Transformers are not part of the core Scala API, but do exist in the ScalaZ library, and can be implemented manually using core Scala if needed.*
 
 ##### Try
 
-`flatten` for `Try` works pretty much the same as it does for `Option`.  Scala does not allow nested Failures, so it's really a lot like `Option`, which only allows nested `Some`s, except in the case of `Try`, we have to manage nested `Success`s instead.
+`flatten` for `Try` works pretty much the same as it does for ``.  Scala does not allow nested Failures, so it's really a lot like `Option`, which only allows nested `Some`s, except in the case of `Try`, we have to manage nested `Success`s instead.
 
 Here's a basic example of how `flatten`ning `Try`s works:
 
@@ -1636,9 +1636,11 @@ Either is a little different from `Try` and `Option`, but the same basic rules a
 
 #### `foreach`
 
-`foreach` works just like `map`, except for it doesn't return anything.  This function is good for executing operations that cause side-effects over the value in the data type we are working with.  Since this is the only real difference between `foreach` and `map`, I'm just going to provide examples for each type.  When we get to the `Either` type, recall that we have to specify a permutation before `foreach` can be called.  It's also worth noting that making sure you use `foreach` in concurrent systems is especially important because `map` is not designed to handle side-effects.  If you try to use `map` for lambdas with side-effects, you may encounter some unpredictable results in your code.
+`foreach` works just like `map`, except for it doesn't return anything.  This function is good for executing operations that cause side-effects over the value in the data type we are working with.  Since this is the only real difference between `foreach` and `map`, I'm not going to go into much detail in describing how it works, but, rather, I'm going to provide a simple example which isolates how it's used with each type, and then follow up with a more complex example for each which uses `map`, `flatMap`, and `foreach` to try to illustrate the difference in use-case for each.  When we get to the `Either` type, recall that we have to specify a permutation before `foreach` can be called.  It's also worth noting that making sure you use `foreach` in concurrent systems is especially important because `map` is not designed to handle side-effects.  If you try to use `map` for lambdas with side-effects, you may encounter some unpredictable results in your code.
 
 ##### Option
+
+Here's a basic example of using `foreach` with `Option`.
 
 ```scala
 scala> val opt: Option[String] = Some("hello")
@@ -1661,7 +1663,66 @@ scala>
 
 Again, not the lack of a return value on `foreach`.
 
+Let's visit an example for working with Redis and see how it cleans up using `map`, `flatMap`, and `foreach`.
+
+Original:
+
+```scala
+scala> import com.redis._
+import com.redis._
+
+scala> val redis = new RedisClient("localhost", 6379)
+redis: com.redis.RedisClient = localhost:6379
+
+scala> redis.set("hello-key", "world-key")
+res75: Boolean = true
+
+scala> redis.set("world-key", "Hello")
+res76: Boolean = true
+
+scala> def printRedisKeyValue(response: Option[String]): Unit = response match {
+     |   case Some(value) => println(value)
+     |   case None => println("there was an error")
+     | }
+printRedisKeyValue: (response: Option[String])Unit
+
+scala> printRedisKeyValue {
+     |   redis.get("hello-key") match {
+     |     case Some(worldKey) => redis.get(worldKey) match {
+     |       case Some(helloStr) => Some(helloStr + ", world!")
+     |       case None => None
+     |     }
+     |     case None => None
+     |   }
+     | }
+Hello, world!
+```
+
+Using `map`, `flatMap`, and `foreach`:
+
+```scala
+scala> val redis = new RedisClient("localhost", 6379)
+redis: com.redis.RedisClient = localhost:6379
+
+scala> redis.set("hello-key", "world-key")
+res82: Boolean = true
+
+scala> redis.set("world-key", "Hello")
+res83: Boolean = true
+
+scala> redis.
+     |   get("hello-key").
+     |   flatMap(worldKey => redis.get(worldKey)).
+     |   map(_ + ", world!").
+     |   foreach(println)
+Hello, world!
+```
+
+It may just be me, but I'm able to understand what this last code sample is doing much quicker and easier than its predecessor.
+
 ##### Try
+
+Here is a basic example for how `foreach` is used on an instance of `Try`:
 
 ```scala
 scala> val aFailure: Try[String] = Failure(new Exception("oops"))
@@ -1685,9 +1746,99 @@ hello, world!, again!
 scala>
 ```
 
+For the more complex example, let's revisit our ImaginarServiceClient example.  At the start of talking about collections, we had this code:
+
+```scala
+import scala.util.{Try, Success, Failure}
+
+val configClient: Try[ImaginaryConfigurationClient] = Try(new ImaginaryConfigurationClient(appConfig.configurationServerAddress))
+val imaginaryClient: Try[ImaginaryServiceClient] = Try(new ImaginaryServiceClient(configClient.get))
+
+imaginaryClient match {
+  case Success(client) => if (client.connected) {
+    client.doThings()
+    client.destroy()
+  }
+  case Failure(e) => System.err.println(e)
+}
+
+if (configClient.isSuccess && configClient.get.connected) configClient.get.destroy()
+```
+
+which we simplified with `map` and `flatten` to get:
+
+```scala
+val configClient: Try[ImaginaryConfigurationClient] = new ImaginaryConfigurationClient(appConfig.configurationServerAddress)
+val imaginaryClient: Try[ImaginaryServiceClient] = configClient.map(confClient => new ImaginaryServiceClient(confClient)).flatten
+
+imaginaryClient match {
+  case Success(client) => if (client.connected) {
+    client.doThings()
+    client.destroy()
+  }
+  case Failure(e) => System.err.println(e)
+}
+
+if (configCient.isSuccess && configClient.get.connected) configClient.get.destroy()
+```
+
+Which we then further simplified with `flatMap` to get:
+
+```scala
+val configClient: Try[ImaginaryConfigurationClient] = new ImaginaryConfigurationClient(appConfig.configurationServerAddress)
+val imaginaryClient: Try[ImaginaryServiceClient] = configClient.flatMap(confClient => new ImaginaryServiceClient(confClient))
+
+imaginaryClient match {
+  case Success(client) => if (client.connected) {
+    client.doThings()
+    client.destroy()
+  }
+  case Failure(e) => System.err.println(e)
+}
+
+if (configCient.isSuccess && configClient.get.connected) configClient.get.destroy()
+```
+
+Now, let's take this even a step further by using `foreach`, `map`, and `flatMap`:
+
+```scala
+val configClient: Try[ImaginaryConfigurationClient] = new ImaginaryConfigurationClient(appConfig.configurationServerAddress)
+val imaginaryClient: Try[ImaginaryServiceClient] = configClient.flatMap(confClient => new ImaginaryServiceClient(confClient))
+
+imaginaryClient match {
+  case Success(client) => if (client.connected) {
+    client.doThings()
+    client.destroy()
+  }
+  case Failure(e) => System.err.println(e)
+}
+
+configClient.foreach(client => if (client.connected) client.destroy())
+```
+
+Notice how the code for cleaning up the configClient shortened up a bit.  We could have also used `foreach` instead of `match`ing on the `imaginaryClient`, but that makes handling the `Failure` case to print possible `Exception`s out to the logs more difficult and convoluted, so in this case, it's actually better to use `match`, there.
+
+We could also write the above as follows and acheive the exact same result (though I think most would find this less readable, even though it's more concise):
+
+```scala
+val configClient: Try[ImaginaryConfigurationClient] = new ImaginaryConfigurationClient(appConfig.configurationServerAddress)
+
+configClient.flatMap(confClient => new ImaginaryServiceClient(confClient)) match {
+  case Success(client) => if (client.connected) {
+      client.doThings()
+      client.destroy()
+  }
+  case Failure(e) => System.err.println(e)
+}
+
+configClient.foreach(client => if (client.connected) client.destroy())
+```
+
 ##### Either
 
 ##### Mapping and Flattening with Multiple Types
+
+Here, I'm going to pause a bit to give a more detailed example of mapping over abstract types and flattening them out when they become nested because mapping is a pretty important concept to get down.  The rest of the functions that we'll talk about until we get to Comprehensions are good to know about as helpers and utilities, but not as essential to working with abstract types as mapping is.  So let's move forward to a more complex example.
 
 Now, remember this code from our intro to the `Either` type? Let's try and refactor it a little bit using the functions we've learned about.
 
@@ -1743,6 +1894,8 @@ scala> val response = httpResponse.foreach { response =>
 ```
 
 #### `exists`
+
+
 
 ##### Option
 
