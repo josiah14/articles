@@ -1712,7 +1712,7 @@ res83: Boolean = true
 
 scala> redis.
      |   get("hello-key").
-     |   flatMap(worldKey => redis.get(worldKey)).
+     |   flatMap(redis.get(_)).
      |   map(_ + ", world!").
      |   foreach(println)
 Hello, world!
