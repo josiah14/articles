@@ -214,6 +214,23 @@ res2: Boolean = false
 
 As you can see from the above, `forall` (and also `filter` and other related functions that take a lambda) can be quite handy, but you have to be careful to satisfy the type system when writing in your logic.  Most type errors should be caught by the Scala compiler, so if you have a good IDE, it should tell you when you're doing something that the Scala compiler doesn't like, but it should also be apparent from the error message above that you might not always get the most helpful error responses (take a look at the `scala.MatchError` when calling `forall` on `y` for the first time).  The best way to guard against running into these sorts of issues is to make sure you **1.** always provide a default case at the end to ensure all of your possible edge cases have a match, and **2.** make sure you don't test for cases that could never occur, such as in the last call of `forall` on `x` in the above example, where we try to match the contents of `x` on the `String` type when we already know via the type declaration on `x` that all of the items are `Int`s.  Scala's type system will catch such senseless attempts and actually prevent your code from compiling in these cases.
 
+#### `fold`
+
+Those coming from Python or Ruby will know `fold` under the name `reduce`.  What `fold` allows us to do is operate on each item in a `List` (or any container/contex, as we will see later) but keep track of the last value and append to it as we go until there are no more items left.  Note that the first value that `fold` takes (as a curried parameter) is the initial starting value for the operation.
+
+Here is an illustration of `fold` on a `List`.
+
+```scala
+
+scala> List(1,2,3,4,5).fold(0)(_ + _)
+res117: Int = 15
+
+scala> List(1,2,3,4,5).fold(3)(_ + _)
+res118: Int = 18
+```
+
+In the above example, you can see that the first `fold` operation starts at 0, so the end result is just 1 + 2 + 3 + 4 + 5 = 15.  But the second `fold` operation starts at 3, so the result is 3 + 1 + 2 + 3 + 4 + 5 = 18.  Note that with `fold`, your operation must be associative because the direction of the `fold`ing is not specified.  If you need to `fold` with a non-associative binary function, you will need to use `leftFold` or `rightFold`.  However, I will no be covering `leftFold` or `rightFold` in this article because the only abstract type we will be talking about that implements them is `Option`, but they each behave basically the same as `fold` on `Option`s since they are one value and the direction of the `fold`ing, therefore, doesn't matter.
+
 #### `zip`
 
 `zip` takes another `List` as a parameter and pairs up the elements of each of the `List`s by index.  In the event that one `List` is shorter than the other, the extra elements from the longer `List` will be excluded in the resulting `List`. The result `List` will be a `List` containing `Tuple2`s, with the first element of the tuple being the element from the first `List`, and the second element of the tuple being the element from the second `List`.
@@ -1832,6 +1849,215 @@ configClient.foreach(client => if (client.connected) client.destroy())
 
 ##### Either
 
+Working with 'foreach' over an `Either` is just like `map` - you first need to declare which projection you want to work on since it's an unbiased type.  If the instance of `Either` you are working with happens to be the other projection from the one you choose to work on, `foreach` will just become a noop, so you don't have to worry about causing a runtime exception because you chose the 'wrong' projection on a `foreach` call.  This is by design, so that you can easily declare separate chains of operations for each projection using `foreach`.
+
+Let's start with a simple example.
+
+```scala
+scala> val leftEither: Either[Int, String] = Left(5)
+leftEither: Either[Int,String] = Left(5)
+
+scala> val rightEither: Either[Int, String] = Right("hello")
+rightEither: Either[Int,String] = Right(hello)
+
+scala> leftEither.foreach(n => println(n * 3))
+<console>:28: error: value foreach is not a member of Either[Int,String]
+       leftEither.foreach(n => println(n * 3))
+                  ^
+
+scala> leftEither.left.foreach(n => println(n * 3))
+15
+res106: Any = ()
+
+scala> leftEither.right.foreach(n => println(n * 3))
+res107: Any = ()
+
+scala> rightEither.foreach(str => println(str + ", world!"))
+<console>:28: error: value foreach is not a member of Either[Int,String]
+       rightEither.foreach(str => println(str + ", world!"))
+                   ^
+
+scala> rightEither.left.foreach(str => println(str + ", world!"))
+res109: Any = ()
+
+scala> rightEither.right.foreach(str => println(str + ", world!"))
+hello, world!
+res110: Any = ()
+
+scala> def printEither(eitherInstance: Either[Int, String]): Unit = {
+     |   eitherInstance.left.map(_ * 3).left.foreach(println).right.map(_ + ", world!").right.foreach(println)
+     | }
+<console>:27: error: value right is not a member of Any
+         eitherInstance.left.map(_ * 3).left.foreach(println).right.map(_ + ", world!").right.foreach(println)
+                                                              ^
+
+scala> def printEither(eitherInstance: Either[Int, String]): Unit = {
+     |   eitherInstance.left.map(_ * 3).left.foreach(println)
+     |   eitherInstance.right.map(_ + ", world!").right.foreach(println)
+     | }
+printEither: (eitherInstance: Either[Int,String])Unit
+
+scala> printEither(rightEither)
+hello, world!
+
+scala> printEither(leftEither)
+15
+```
+
+Remember that each time we call a `Collection`s inspired method on an `Either`, that we need to specify the projection, even if we've already specified the projection for a previous method call.
+
+The definition of `printEither` in the last example illustrates how easy it is to specify the behavior for each projection of the `Either` separately using the `Collection` methods like `map` and `foreach` without using `match`.  Using `match` is fine, but for chains of operations like the above, it's easier and more concise to use methods like `map` and `foreach`.  To illustrate, I'll provide an implementation of `printEither`, below, that uses `match`.
+
+```scala
+// exact equivalent of above.
+def printEither(eitherInstance: Either[Int, String]): Unit = {
+  eitherInstance match {
+    case Left(value) => Left(value * 3)
+    case Right(value) => Right(value + ", world!")
+  } match {
+    case Left(value) => println(value)
+    case Right(value) => println(value)
+  }
+}
+
+// A more concise version of the same, but still not as nice as using map and foreach
+def printEither(eitherInstance: Either[Int, String]): Unit = {
+  eitherInstance match {
+    case Left(value) => println(value * 3)
+    case Right(value) => println(value + ", world!")
+  }
+}
+```
+
+Now let's look at a more complex example which uses `map`, `foreach`, and `flatMap` by taking a look at a simplified version of our HTTP Client code.  We are going to exclude the use of `Try` in this example and just focus on using `Either` for the moment.
+
+```scala
+scala> import scala.util.{Either, Left, Right}
+import scala.util.{Either, Left, Right}
+
+scala> import org.apache.http.impl.client.DefaultHttpClient
+import org.apache.http.impl.client.DefaultHttpClient
+
+scala> import org.apache.http.client.methods.{HttpGet, CloseableHttpResponse}
+import org.apache.http.client.methods.{HttpGet, CloseableHttpResponse}
+
+scala> import org.apache.http.message.BasicStatusLine
+import org.apache.http.message.BasicStatusLine
+
+scala> import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
+import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
+
+scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
+httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
+
+scala> def handleHttpResponse(httpResponse: CloseableHttpResponse): Either[StatusLine, HttpEntity] = httpResponse.getStatusLine().getStatusCode() match {
+     |   case code if 100 until 227 contains code => Right(httpResponse.getEntity())
+     |   case code => Left(httpResponse.getStatusLine())
+     | }
+handleHttpResponse: (httpResponse: org.apache.http.client.methods.CloseableHttpResponse)scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]
+
+scala> val httpResponse: Either[StatusLine, HttpEntity] = handleHttpResponse(httpClient.execute(new HttpGet("http://dstconnect.dstcorp.net/display/dstconnect/Home")))
+httpResponse: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@ec585ee)
+
+scala> httpResponse match {
+     |   case Right(httpEntity) => println(httpEntity.getContent().read())
+     |   case Left(statusLine) => println(statusLine.getReasonPhrase())
+     | }
+60
+```
+
+Let's change this just slightly to provide an occassion for `flatMap` by including in here a temporary redirect.  In this code, we will handle the temporary redirect scenario by getting the redirect link out of the `StatusLine.getReasonPhrase()` in the `LeftProjection` of the `Either`.
+
+```scala
+scala> import scala.util.{Either, Left, Right}
+import scala.util.{Either, Left, Right}
+
+scala> import org.apache.http.impl.client.DefaultHttpClient
+import org.apache.http.impl.client.DefaultHttpClient
+
+scala> import org.apache.http.client.methods.{HttpGet, CloseableHttpResponse}
+import org.apache.http.client.methods.{HttpGet, CloseableHttpResponse}
+
+scala> import org.apache.http.message.BasicStatusLine
+import org.apache.http.message.BasicStatusLine
+
+scala> import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
+import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
+
+scala> var httpClient: DefaultHttpClient = new DefaultHttpClient()
+httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
+
+scala> def handleHttpResponse(httpResponse: CloseableHttpResponse): Either[StatusLine, HttpEntity] = httpResponse.getStatusLine().getStatusCode() match {
+     |   case code if 100 until 227 contains code => Right(httpResponse.getEntity())
+     |   case code => Left(httpResponse.getStatusLine())
+     | }
+handleHttpResponse: (httpResponse: org.apache.http.client.methods.CloseableHttpResponse)scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]
+
+scala> val httpResponse: Either[StatusLine, HttpEntity] = handleHttpResponse(httpClient.execute(new HttpGet("http://dstconnect.dstcorp.net/display/dstconnect/Home")))
+httpResponse: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@ec585ee)
+
+scala> def printResponse(httpResponse: Either[StatusLine, HttpEntity]): Unit = {
+     |   case Right(httpEntity) => println(httpEntity.getContent().read())
+     |   case Left(statusLine) => statusLine.getStatusCode() match {
+     |     case 302 =>
+     |       val redirectUrl: String = statusLine.getReasonPhrase().replace("Location: ", "")
+     |       httpClient.getConnectionManager.shutdown()
+     |       httpClient = new DefaultHttpClient()
+     |       handleHttpResponse(httpClient.execute(new HttpGet(redirectUrl))) match {
+     |         case res @ Left(statusLine) => statusLine.getStatusCode() match {
+     |            case 302 => printResponse(res)
+     |            case _ => println(statusLine.getReasonPhrase())
+     |         }
+     |         case res => printResponse(res)
+     |       }
+     |     case _ => println(statusLine.getReasonPhrase())
+     |   }
+     | }
+printResponse: (httpResponse: Either[org.apache.http.StatusLine,org.apache.http.HttpEntity])Unit
+
+scala> printResponse(httpResponse)
+60
+```
+
+Now, let's refactor this a bit with the methods we've covered so far.  The imports won't change, so we'll leave them out for the rest of the examples in this section:
+
+```scala
+scala> var httpClient: DefaultHttpClient = new DefaultHttpClient()
+httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
+
+scala> def handleHttpResponse(httpRespons: CloseableHttpResponse): Either[StatusLine, HttpEntity] =
+     |   httpResponse.getStatusLine().getStatusCode() match {
+     |     case code if 100 until 227 contains code => Right(httpResponse.getEntity())
+     |     case code => Left(httpResponse.getStatusLine())
+     | }
+handleHttpResponse: (httpResponse: org.apache.http.client.methods.CloseableHttpResponse)scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]
+
+scala> val httpResponse: Either[StatusLine, HttpEntity] = 
+     |   handleHttpResponse(httpClient.execute(new HttpGet("http://dstconnect.dstcorp.net/display/dstconnect/Home")))
+httpResponse: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@ec585ee)
+
+scala> def redirectTo(redirectUrl: String): Either[StatusLine, HttpEntity] = {
+     |   httpClient.getConnectionManager.shutdown()
+     |   httpClient = new DefaultHttpClient()
+     |   handleHttpResponse(httpClient.execute(new HttpGet(redirectUrl)))
+     | }
+
+scala> def printResponse(httpResponse: Either[StatusLine, HttpEntity]): Unit = {
+     |   httpResponse.right.map(_.getContent().read()).right.foreach(println)
+     |   val redirectResponse = httpResponse.
+     |     left.map(statusLine => (statusLine.getStatusCode(), statusLine.getReasonPhrase())).
+     |     left.flatMap(pair => if (pair._1 == 302) redirectTo(pair._2.replace("Location: ", "") else httpResponse))
+     |
+     |   if (redirectResponse.isRight) printResponse(redirectResponse)
+     |   redirectResponse.left.foreach(statusLine => statusLine.getStatusCode() match {
+     |     case 302 => printResponse(redirectResponse)
+     |     case _ => println(statusLine.getReasonPhrase()))
+     |   }
+     | }
+```
+
+You can probably already pick out ways to make this code even simpler (the recursion can be further utilized, for example, to simplify this code), but I'm going to leave it this way for now because this implementation lends itself to further refactoring using `filter`, which we'll get to later.
+
 ##### Mapping and Flattening with Multiple Types
 
 Here, I'm going to pause a bit to give a more detailed example of mapping over abstract types and flattening them out when they become nested because mapping is a pretty important concept to get down.  The rest of the functions that we'll talk about until we get to Comprehensions are good to know about as helpers and utilities, but not as essential to working with abstract types as mapping is.  So let's move forward to a more complex example.
@@ -1914,6 +2140,26 @@ scala> val response = httpResponse.foreach { response =>
 ##### Try
 
 ##### Either
+
+#### `fold`
+
+##### Option
+
+For `Option` types, `fold` returns the first curried parameter if it's a `None` or, otherwise, returns the result of the operation in the second parameter if it's a `Some`.
+
+Here's a quick example:
+
+```scala
+scala> Option(3).fold(0)(_ + 4)
+res120: Int = 7
+
+scala> (None: Option[Int]).fold(0)(_ + 4)
+res123: Int = 0
+```
+
+##### Either
+
+`fold` for the `Either` type really doesn't make much sense to me as a `fold` operation, as it's not really there to perform an accumulating calculation on an `Either`, but, rather, it's there to provide a way to work on the `Left` and `Right` projections at the same time.  I find it to be a nice alternative to pattern matching, but, ultimately, it kicks you out of the `Either` type unless you explicitly re-wrap the values in the lambda expressions you provide to the `fold` function, so I don't find it to be as useful as some of the other functions we talked about.  Nonetheless, it can help shorten up your code a bit if you want to end a sequence of calculations on an `Either` and want to handle both projections in the same block of code.
 
 #### `zip`
 
