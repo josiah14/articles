@@ -2064,7 +2064,7 @@ You can probably already pick out ways to make this code even simpler (the recur
 
 One disadvantage to using Collections methods with the `Either` type is that you lose some of the compile-time type-safety.  If you match on an `Either` and don't handle both projections, the compiler will throw an error.  However, if you use `isRight`, `foreach`, `map`, etc. on your projections, the compiler can't tell if you missed handling a projection, so it leaves you vulnerable to the possibility that you forget to handle one of the projections.  The advantage is that you don't have to leave the type in order to perform operations on it.  It seems more natural to me to use `isRight` and then pass `redirectResponse` back into `printResponse` recursively than it does to call `foreach` and start working with the value inside of the `Either` just to pass the full `Either` instance, `redirectResponse` back into `printResponse` when we handle the `302` case.
 
-##### Mapping and Flattening with Multiple Types
+#### Mapping and Flattening with Multiple Types (Intermission)
 
 Here, I'm going to pause a bit to give a more detailed example of mapping over abstract types and flattening them out when they become nested because mapping is a pretty important concept to get down.  The rest of the functions that we'll talk about until we get to Comprehensions are good to know about as helpers and utilities, but not as essential to working with abstract types as mapping is.  So let's move forward to a more complex example.
 
@@ -2174,13 +2174,82 @@ I would challenge you, at this point, to take the above code and try other ways 
 
 #### `exists`
 
-
+First, it's important to be aware that there is no implementation of `exists` for `Either` or `Try`.  I'm starting out with this tidbit of information because you will not find a section for `Either` or `Try` for this function since they do not implement it as of this writing.  I'm not sure why `exists` has not been implemented on these types, but the fact remains that, as far as I could determine, it is not provided in the core Scala libraries for the `Either` or the `Try` types.
 
 ##### Option
 
-##### Try
+What is common between `exists` for `List` and `Option` is that it takes a predicate.  If there is a value in the container that causes the predicate to return `true`, then `exists` returns `true`, but if there is no value that satisfies the predicate, `exists` will return `false`.  The difference is that, for `Option`, `exists` will return `false` if it's a `None` without exception.  Also, for `List`, there are many potential values that could satisfy the predicate and cause `exists` to return `true`, as only one value needs to satisfy it.  However, `Option` can only ever hold at most one value, so `exists` essentially tells you whether the value in the type instance satisfies the predicate you supplied to `exists`.
 
-##### Either
+Here is a simple example:
+
+```scala
+scala> Some(5).exists(_ > 5)
+res55: Boolean = false
+
+scala> Some(5).exists(_ > 2)
+res56: Boolean = true
+
+scala> Some(5).exists(_.isInstanceOf[Int])
+res58: Boolean = true
+
+scala> Some(5).exists(_.isInstanceOf[String])
+<console>:20: warning: fruitless type test: a value of type Int cannot also be a String (the underlying of String)
+       Some(5).exists(_.isInstanceOf[String])
+                                    ^
+<console>:20: error: isInstanceOf cannot test if value types are references.
+       Some(5).exists(_.isInstanceOf[String])
+                        ^
+
+scala> Some(5).exists(_.isInstanceOf[Double])
+res60: Boolean = false
+
+scala> val something: Option[Any] = Some(5)
+something: Option[Any] = Some(5)
+
+scala> something.exists { case n: String => true; case _ => false }
+res43: Boolean = false
+
+scala> something.exists { case n: Int => true; case _ => false }
+res44: Boolean = true
+
+scala> something.exists { case n: Int => n > 5; case _ => false }
+res45: Boolean = false
+
+scala> something.exists { case n: Int => n > 2; case _ => false }
+res46: Boolean = true
+
+scala> something.exists(_.isInstanceOf[Int])
+res47: Boolean = true
+
+scala> something.exists(_.isInstanceOf[String])
+res49: Boolean = false
+
+scala> something.exists(_ > 5)
+<console>:20: error: value > is not a member of Any
+       something.exists(_ > 5)
+                          ^
+
+scala> val something: Option[Any] = None
+something: Option[Any] = None
+
+scala> soemthing.exists(_ != null)
+<console>:19: error: not found: value soemthing
+       soemthing.exists(_ != null)
+       ^
+
+scala> something.exists(_ != null)
+res52: Boolean = false
+
+scala> something.exists(_ == null)
+res53: Boolean = false
+
+scala> something.exists(_ > 5)
+<console>:20: error: value > is not a member of Any
+       something.exists(_ > 5)
+                          ^
+```
+
+As you can see in the above sample code, the type system will still prevent you from putting senseless predicates that are meaningless into you `exists` function, which is nice since these sorts of errors will be caught at compile time and the user will, therefore, never see them.  You can also see that you can provide partial functions as the lambda predicate (see the `case` expression examples) and Scala has no problem with figuring out how to run it as a predicate for `exists`, as long as it can satisfy the type system's requirements.
 
 #### `filter`
 
