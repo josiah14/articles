@@ -1950,13 +1950,15 @@ import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
 scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
 httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
 
-scala> def handleHttpResponse(httpResponse: CloseableHttpResponse): Either[StatusLine, HttpEntity] = httpResponse.getStatusLine().getStatusCode() match {
-     |   case code if 100 until 227 contains code => Right(httpResponse.getEntity())
-     |   case code => Left(httpResponse.getStatusLine())
-     | }
+scala> def handleHttpResponse(httpResponse: CloseableHttpResponse): Either[StatusLine, HttpEntity] =
+     |   httpResponse.getStatusLine().getStatusCode() match {
+     |     case code if 100 until 227 contains code => Right(httpResponse.getEntity())
+     |     case code => Left(httpResponse.getStatusLine())
+     |   }
 handleHttpResponse: (httpResponse: org.apache.http.client.methods.CloseableHttpResponse)scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]
 
-scala> val httpResponse: Either[StatusLine, HttpEntity] = handleHttpResponse(httpClient.execute(new HttpGet("http://dstconnect.dstcorp.net/display/dstconnect/Home")))
+scala> val httpResponse: Either[StatusLine, HttpEntity] =
+     |   handleHttpResponse(httpClient.execute(new HttpGet("http://dstconnect.dstcorp.net/display/dstconnect/Home")))
 httpResponse: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@ec585ee)
 
 scala> httpResponse match {
@@ -1987,13 +1989,15 @@ import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
 scala> var httpClient: DefaultHttpClient = new DefaultHttpClient()
 httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
 
-scala> def handleHttpResponse(httpResponse: CloseableHttpResponse): Either[StatusLine, HttpEntity] = httpResponse.getStatusLine().getStatusCode() match {
-     |   case code if 100 until 227 contains code => Right(httpResponse.getEntity())
-     |   case code => Left(httpResponse.getStatusLine())
-     | }
+scala> def handleHttpResponse(httpResponse: CloseableHttpResponse): Either[StatusLine, HttpEntity] =
+     |   httpResponse.getStatusLine().getStatusCode() match {
+     |     case code if 100 until 227 contains code => Right(httpResponse.getEntity())
+     |     case code => Left(httpResponse.getStatusLine())
+     |   }
 handleHttpResponse: (httpResponse: org.apache.http.client.methods.CloseableHttpResponse)scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]
 
-scala> val httpResponse: Either[StatusLine, HttpEntity] = handleHttpResponse(httpClient.execute(new HttpGet("http://dstconnect.dstcorp.net/display/dstconnect/Home")))
+scala> val httpResponse: Either[StatusLine, HttpEntity] =
+     |   handleHttpResponse(httpClient.execute(new HttpGet("http://dstconnect.dstcorp.net/display/dstconnect/Home")))
 httpResponse: scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity] = Right(org.apache.http.conn.BasicManagedEntity@ec585ee)
 
 scala> def printResponse(httpResponse: Either[StatusLine, HttpEntity]): Unit = {
@@ -2056,13 +2060,15 @@ scala> def printResponse(httpResponse: Either[StatusLine, HttpEntity]): Unit = {
      | }
 ```
 
-You can probably already pick out ways to make this code even simpler (the recursion can be further utilized, for example, to simplify this code), but I'm going to leave it this way for now because this implementation lends itself to further refactoring using `filter`, which we'll get to later.
+You can probably already pick out ways to make this code even simpler (the recursion can be further utilized, for example, to simplify this code and eliminate the nested `Either` tyes all-together), but I'm going to leave it this way for now because this implementation lends itself to further refactoring using `filter`, which we'll get to later.
+
+One disadvantage to using Collections methods with the `Either` type is that you lose some of the compile-time type-safety.  If you match on an `Either` and don't handle both projections, the compiler will throw an error.  However, if you use `isRight`, `foreach`, `map`, etc. on your projections, the compiler can't tell if you missed handling a projection, so it leaves you vulnerable to the possibility that you forget to handle one of the projections.  The advantage is that you don't have to leave the type in order to perform operations on it.  It seems more natural to me to use `isRight` and then pass `redirectResponse` back into `printResponse` recursively than it does to call `foreach` and start working with the value inside of the `Either` just to pass the full `Either` instance, `redirectResponse` back into `printResponse` when we handle the `302` case.
 
 ##### Mapping and Flattening with Multiple Types
 
 Here, I'm going to pause a bit to give a more detailed example of mapping over abstract types and flattening them out when they become nested because mapping is a pretty important concept to get down.  The rest of the functions that we'll talk about until we get to Comprehensions are good to know about as helpers and utilities, but not as essential to working with abstract types as mapping is.  So let's move forward to a more complex example.
 
-Now, remember this code from our intro to the `Either` type? Let's try and refactor it a little bit using the functions we've learned about.
+Now, remember this code from our intro to the `Either` type? Let's add in a call to Redis to get out the URL we want to hit so that we can see every type in action.  It's a bit of a contrived example, but I think it will still server the purpose of getting you used to seeing multiple types in action and interacting with one another within the same code.  This concept will become more important as we encounter some of the later functions, as they may return a different type that the one you started with.
 
 ```scala
 scala> import scala.util.{Try, Success, Failure, Either, Left, Right}
@@ -2080,11 +2086,64 @@ import org.apache.http.message.BasicStatusLine
 scala> import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
 import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
 
-scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
-httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
+scala> import com.redis._
+import com.redis._
 
-scala> def handleHttpResponse(httpResponse: Try[CloseableHttpResponse]): Try[Either[StatusLine, HttpEntity]] = {
-     |   httpResponse.map { response =>
+scala> val redis: RedisClient = new RedisClient("localhost", 6379)
+redis: com.redis.RedisClient = localhost:6379
+
+scala> redis.set("uri-requested", "http://dstconnect.dstcorp.net/display/dstconnect/Home")
+res152: Boolean = true
+
+scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
+httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@74e5f8ab
+
+scala> def handleHttpResponse(httpResponse: Try[CloseableHttpResponse]): Try[Either[StatusLine, HttpEntity]] =
+     |   httpResponse match {
+     |     case Success(response) =>
+     |       val statusLine = response.getStatusLine()
+     |       statusLine.getStatusCode() match {
+     |         case code if 100 until 227 contains code => Success(Right(response.getEntity()))
+     |         case code if 300 until 500 contains code => Success(Left(statusLine))
+     |         case code => Failure(new Exception("Got status code: " + code.toString + " with message: " + statusLine.getReasonPhrase()))
+     |       }
+     |     case Failure(e) => Failure(e)
+     |   }
+handleHttpResponse: (httpResponse: scala.util.Try[org.apache.http.client.methods.CloseableHttpResponse])scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]
+
+scala> val HttpResponse: Option[Try[Either[StatusLine, HttpEntity]]] = redis.get("uri-requested") match {
+     |   case Some(uri) => Some(handleHttpResponse(Try(httpClient.execute(new HttpGet(uri)))))
+     |   case None => None
+     | }
+HttpResponse: Option[scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]] = Some(Success(Right(org.apache.http.conn.BasicManagedEntity@108697f4)))
+
+scala> HttpResponse match {
+     |   case Some(tryResponse) => tryResponse match {
+     |     case Success(eitherResponse) => eitherResponse match {
+     |       case Right(httpEntity) => println(httpEntity.getContent().read())
+     |       case Left(statusLine) => println(statusLine.getReasonPhrase())
+     |     }
+     |     case Failure(e) => println(e)
+     |   }
+     |   case None => println("Error: no URI found at the Redis key attempted")
+     | }
+60
+```
+
+Let's see how we might, alternatively, write the above code using the Collections functions we've talked about so far that are available to our abstract types for error handling:
+
+```scala
+scala> val redis: RedisClient = new RedisClient("localhost", 6379)
+redis: com.redis.RedisClient = localhost:6379
+
+scala> redis.set("uri-requested", "http://dstconnect.dstcorp.net/display/dstconnect/Home")
+res0: Boolean = true
+
+scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
+httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@1a97e2a9
+
+scala> def handleHttpResponse(httpResponse: Try[CloseableHttpResponse]): Try[Either[StatusLine, HttpEntity]] =
+     |   httpResponse map { response =>
      |     val statusLine = response.getStatusLine()
      |     statusLine.getStatusCode() match {
      |       case code if 100 until 227 contains code => Right(response.getEntity())
@@ -2092,28 +2151,26 @@ scala> def handleHttpResponse(httpResponse: Try[CloseableHttpResponse]): Try[Eit
      |       case code => throw new Exception("Got status code: " + code.toString + " with message: " + statusLine.getReasonPhrase())
      |     }
      |   }
-     | }
 handleHttpResponse: (httpResponse: scala.util.Try[org.apache.http.client.methods.CloseableHttpResponse])scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]
 
-scala> val httpResponse: Try[Either[StatusLine, HttpEntity]] = handleHttpResponse(Try(httpClient.execute(new HttpGet("http://www.google.com"))))
-Dec 11, 2015 1:35:21 PM org.apache.http.impl.client.DefaultHttpClient tryConnect
-httpResponse: scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]] = Failure(java.net.NoRouteToHostException: No route to host)
+scala> val httpResponse: Option[Try[Either[StatusLine, HttpEntity]]] =
+    |    redis.get("uri-requested").map(uri => handleHttpResponse(Try(httpClient.execute(new HttpGet(uri)))))
+HttpResponse: Option[scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]] = Some(Success(Right(org.apache.http.conn.BasicManagedEntity@397e3d8a)))
 
-scala> httpClient.getConnectionManager().shutdown()
-
-scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
-httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@4ba1f84b
-
-scala> val httpResponse: Try[Either[StatusLine, HttpEntity]] = handleHttpResponse(Try(httpClient.execute(new HttpGet("http://localhost:3000"))))
-Dec 11, 2015 1:39:41 PM org.apache.http.client.protocol.ResponseProcessCookies processCookies
-httpResponse: scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]] = Success(Right(org.apache.http.conn.BasicManagedEntity@10a15612))
-
-scala> val response = httpResponse.foreach { response =>
-     |   response.right.map(\_.getContent().read()).right.foreach(println)
-     |   response.left.map(\_.getReasonPhrase()).left.foreach(println)
-     | }
+scala> Try(httpResponse.get).flatten match {
+     |   case Success(response) =>
+     |     response.right.map(_.getContent().read()).right.foreach(println)
+     |     response.left.map(_.getReasonPhrase()).left.foreach(println)
+     |   case Failure(e) => println(e)
+     | })
 60
 ```
+
+In the above example, if we get a response code in [100, 126] we print out the first byte of the page content, if we get a response code in [300, 499] we print out the reason phrase that came with the response, if we get a response code in [500, *infinity*) we throw an exception with the code and reason phrase and print it to the console, and if we couldn't get a URL from Redis, all of those `map`s and `foreach` functions are skipped and we just print to the console the exception that `get` would throw in this scenario when called on the `None` `Option` that the Redis Client's `get` function returns when there is no value at a key (or the key doesn't exist).  Both examples are mostly equivalent, with the one difference being that in this last example we are throwing our `Exceptions` and allowing the `Try` function to catch them and wrap them in a `Failure` instead wrapping the `Exceptions` directly in a `Failure` as in the original code.
+
+The main wins in the second example compared to the first is that we don't have to explicitly handle the `Failure` case just to re-wrap the exception into the new `Try` it returns in `handleHttpResponse`, we don't have to handle the `None` case just to pass back `None` again in `httpResponse`, and by converting our `httpResponse` `Option` into a `Try` in the last code block and calling `flatten` on it, we eliminated a level of nesting by needing to handle the `Option` cases explicitly.  We eliminated all of this explicit error handling while losing very little of the detail in our error reporting, which showcases really well the power of using these utility functions on our types to simplify our code.
+
+I would challenge you, at this point, to take the above code and try other ways of using these functions to acheive the same result.
 
 #### `exists`
 
