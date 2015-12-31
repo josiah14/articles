@@ -2253,6 +2253,8 @@ As you can see in the above sample code, the type system will still prevent you 
 
 #### `filter`
 
+As with other examples, `Option` behaves the most like a `List` for `filter`.  The other types (`Try` and `Either`) have some little idiosyncrasies, but also work mostly the same.  Let's look at some examples for each type.
+
 ##### Option
 
 ##### Try
@@ -2283,9 +2285,119 @@ scala> (None: Option[Int]).fold(0)(_ + 4)
 res123: Int = 0
 ```
 
+There's not much else to folding on `Option` types.  They pretty much just work like a single-element `List` where `None` is, more or less, equivalent to `Nil`.
+
+To prime you for the following sections, consider this interesting property of `fold` on the `Option` type:
+
+```scala
+scala> Some(3).fold(None: Option[Int])(Some(_))
+res0: Option[Int] = Some(3)
+
+scala> (None: Option[Int]).fold(None: Option[Int])(Some(_))
+res1: Option[Int] = None
+
+scala> identity(Some(3))
+res2: Option[Int] = Some(3)
+
+scala> identity(None: Option[Int])
+res3: Option[Int] = None
+```
+
+Do you see how we can define the `identity` function in terms of `fold` and the constructors for `Option`: `None` and `Some()`?  Let's build on this concept in the following sections for `Try` and `Either`.
+
+##### Try
+
+Before we even start, note that `fold` for `Try` was not implemented until Scala version 2.12.0-M1.  I'm running 2.11.7 on my machine, so the examples that I provide here will be short, simple, and untested (but should be accurate). ref: https://issues.scala-lang.org/browse/SI-8336
+
+`fold` for `Either` and `Try` takes a little bit more understanding of what `fold` actually is in order to 'grok' it.  Remembering the last example for creating the identify function in terms of `fold` for `Option` types, consider folding over a `List` for a moment.  The way to understand how `fold` would work on an `Either` and `Try` is to consider how to turn `fold` into the identity function for `Lists`; in order to do this, you have to pass the `List` constructors into the `fold` operation to get back the same `List` as a result.  Observe:
+
+```scala
+scala> List(1,2,3).foldRight(Nil: List[Int])(_ :: _)
+res92: List[Int] = List(1, 2, 3)
+
+scala> identity(List(1,2,3))
+res99: List[Int] = List(1, 2, 3)
+```
+
+This is just like `Option`, except the constructors for `Option` are `Some()` and `None`, with `None` being the empty value.
+
+You may note that I had to use `foldRight` instead of the directionless `fold` operation for `List`. If you want to dig into fold directions, you can, but for now, just focus on the constructor `Nil` and the cons operator `::`.  If you aren't familiar with `::`, it is an infix operator that prepends the element on the left to the `List` on the right.  There is a law for `fold` which states that when the `fold` direction is right, when the empty value for the type being folded over (in the case of `List`, our empty value is `Nil`) is used as the starting value for the `fold` operation, and the type's constructor (in the case of `List`, our constructor is `::`) is used as the operation for performing the `fold`, this should give you the same thing back that you started with (also known as the identity function).  You can see this law satisfied for `fold` on the `List` type in the above example.  `foldRight(Nil: List[Int])(_ :: _)` is equivalent in it's end result to the `identity` function.
+
+So, now, considering that the constructors for `Try` are `Success()` and `Failure()`, and knowing that both constructors require a value, we have to write `fold` to take two functions.  With `fold` taking two functions as it's argument, you can guess which one will be first; the function that operates on `Failure` instances needs to come first since `Try` is biased and `Failure` is considered the empty value for this type.  Below is an example to help illustrate how `fold` works on `Try` instances.
+
+```scala
+scala> val tryMe: Try[Int] = Success(5)
+res0: Try[Int] = Success(5)
+
+scala> val failMe: Try[Int] = Failure(new Exception("oops"))
+res1: Try[Int] = Failure(java.lang.Exception: oops)
+
+scala> tryMe.fold(Failure(_), Success(_))
+res2: Try[Int] = Success(5)
+
+scala> failMe.fold(Failure(_), Success(_))
+res3: Try[Int] = Failure(java.lang.Exception: oops)
+```
+
+What this allows me to do is handle my `Failure` and `Success` cases in the same function on an instance of `Try`, so it's like a custom-tailored version of `get`, where I decide how I want to get back value if it's a `Success`, and how I want to handle the error case if it's a `Failure`.  Below are some more examples of using `fold` on a `Try`.
+
+```scala
+scala> tryMe.map(_ * 2).fold(System.err.println(_), println(_))
+10
+
+scala> failMe.map(_ * 2).fold(System.err.println(_), println(_))
+oops
+
+scala>
+```
+
 ##### Either
 
-`fold` for the `Either` type really doesn't make much sense to me as a `fold` operation, as it's not really there to perform an accumulating calculation on an `Either`, but, rather, it's there to provide a way to work on the `Left` and `Right` projections at the same time.  I find it to be a nice alternative to pattern matching, but, ultimately, it kicks you out of the `Either` type unless you explicitly re-wrap the values in the lambda expressions you provide to the `fold` function, so I don't find it to be as useful as some of the other functions we talked about.  Nonetheless, it can help shorten up your code a bit if you want to end a sequence of calculations on an `Either` and want to handle both projections in the same block of code.
+Remembering the `Try` type, we can guess how the `Either` type is going to work. Considering that the constructors for `Either` are `Left()` and `Right()`, it follows that using those constructors in a `fold` operation on `Either` must be logically equivalent to calling the `identity` function on any instance of `Either`.  The way we can do that with `Either` is to just pass into `fold` two functions, the first one operating on `Left` values, and the second one operating on `Right` values.  That way, if we pass the `Either` constructors as our left and right functions respectively, we should get back an identical `Either` instance. Observe:
+
+```scala
+scala> val either: Either[Int, String] = Left(5)
+either: scala.util.Either[Int,String] = Left(5)
+
+scala> either.fold(Left(_), Right(_))
+res102: Product with Serializable with scala.util.Either[Int,String] = Left(5)
+
+scala> val either: Either[Int, String] = Right("hello")
+either: scala.util.Either[Int,String] = Right(hello)
+
+scala> either.fold(Left(_), Right(_))
+res103: Product with Serializable with scala.util.Either[Int,String] = Right(hello)
+
+scala> identity(either)
+res104: scala.util.Either[Int, String] = Right(hello)
+```
+
+`Either` doesn't really have an 'empty' value because an `Either` can't be truly empty as it is unbiased, but even without empty, we can still kind of assume that `Left` would be our first function given the place indicated by its name 'left', but alse because `Left` is typically used to handle non-critical error cases.  Ultimately, there is still a way to create the `identity` function in terms of `fold` on the `Either` type, which is the ultimate point of this law.
+
+This section wouldn't be complete without an example of using `fold` in a scenario where it doesn't end up being the identity function, so I've provided some examples below.
+
+```scala
+scala> val leftEither: Either[Int, String] = Left(-1)
+leftEither: scala.util.Either[Int,String] = Left(-1)
+
+scala> val rightEither: Either[Int, String] = Right("hello, world!")
+rightEither: scala.util.Either[Int,String] = Right(hello, world!)
+
+scala> leftEither.fold(System.err.println(_), println(_))
+-1
+
+scala> leftEither.fold(n => System.err.println(n - 5), println(_))
+-6
+
+scala> rightEither.fold(n => System.err.println(n - 5), println(_))
+hello, world!
+
+scala> leftEither.left.map(_ - 5).fold(System.err.println(_), println(_))
+-6
+
+scala> rightEither.left.map(_ - 5).fold(System.err.println(_), println(_))
+hello, world!
+```
 
 #### `zip`
 
