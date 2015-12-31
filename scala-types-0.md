@@ -2257,9 +2257,111 @@ As with other examples, `Option` behaves the most like a `List` for `filter`.  T
 
 ##### Option
 
+For `Option` types, if the predicate passed in as the argument to `filter` returns true, you get back the 'Some' value.  Otherwise, you get back a `None`.
+
+Here is an illustration:
+
+```scala
+scala> Some(3).filter(_ > 3)
+res121: Option[Int] = None
+
+scala> Some(3).filter(_ > 2)
+res122: Option[Int] = Some(3)
+
+scala> (None: Option[Int]).filter(_ > 3)
+res124: Option[Int] = None
+
+scala> (None: Option[Int]).filter(_ != null)
+res125: Option[Int] = None
+
+scala> (None: Option[Int]).filter(_ == null)
+res126: Option[Int] = None
+
+scala> Some("hello, world!").filter(_.contains("world"))
+res127: Option[String] = Some(hello, world!)
+
+scala> Some("hello, world!").filter(_.contains("apple pie"))
+res128: Option[String] = None
+```
+
+This is pretty much how `filter` works on a single element `List`, except instead of getting back an empty `List` when none of the values satisfy the predicate, I get back a `None`.
+
 ##### Try
 
+`Try` works practically the same as `Option`.  If the predicate passed to `filter` evaluates to `true` for some value inside of a `Success` value of a `Try` instance, you get back an equivalent `Success` value.  If the value inside of a `Success` value doesn't causes the predicate to evaluate to `false`, you'll get back a `Failure` with a `java.util.NoSuchElementException`.  If it's a `Failure`, you always get back the unchanged `Failure` every time.
+
+Here's an example:
+
+```scala
+scala> Success(5).filter(_ > 5)
+res130: scala.util.Try[Int] = Failure(java.util.NoSuchElementException: Predicate does not hold for 5)
+
+scala> Success(5).filter(_ > 4)
+res131: scala.util.Try[Int] = Success(5)
+
+scala> (Failure(new Exception("oops")): Try[Int]).filter(_ > 4)
+res132: scala.util.Try[Int] = Failure(java.lang.Exception: oops)
+```
+
 ##### Either
+
+First, because the function you pass to `filter` needs to satisfy the type system, it can only be called off of the `RightProjection` or `LeftProjection` of `Either`, but this is nothing new.  We have seen this with other functions you can call on `Either`.
+
+In addition to that difference, however, consider that `filter` for `Either` needs to be a little bit different because there isn't an empty constructor/value for `Either`.  For example, if my `filter` operation on the `RightProjection` of an `Either` that is a `Right` fails to satisfy its predicate for the value in the `Right`, what should it return?  It can't return a `Left` because, besides not know which value should go into that `Left`, doing so would also bias our `Either` to make `Left` values seem like error/empty values.
+
+Scala's solution to this predicament is to have `filter` return a new `Either` wrapped in an `Option`.  If the predicate isn't satisfied either because the value in the projection we are operating on can't satisfy it, or because our instance of `Either` is the other projection, `filter` will give us back a `None`.  Otherwise, if the `filter` function's predicate is satisfied, `filter` will give us back a `Some` that holds the original value of our `Either` instance.  However, the type signature of the other projection will always change from whatever it was to start out, to `Nothing`.  For example, if I call `filter` on the `RightProjection` of an `Either[Int, String]`, I'll get back an `Option[Either[Nothing, String]]`.  I don't know why the language designers chose to implement `filter` this way, but, if you don't like it, you can always preserve your types by providing `filter` with an option type parameter which will become the `Left` type signature for the `Either` wrapped in an `Option` that `filter` gives back to you.
+
+That's all a little confusing and hard to explain, so here's a good set of examples so that you can see how this function works on the `Either` type.
+
+```scala
+scala> val rightE: Either[String, Int] = Right(5)
+rightE: scala.util.Either[String,Int] = Right(5)
+
+scala> val leftE: Either[String, Int] = Left("Hello, world!")
+leftE: scala.util.Either[String,Int] = Left(Hello, world!)
+
+scala> rightE.left.filter(_.contains("world"))
+res141: Option[scala.util.Either[String,Nothing]] = None
+
+scala> rightE.left.filter[Int](_.contains("world"))
+res142: Option[scala.util.Either[String,Int]] = None
+
+scala> rightE.left.filter[List[Int]](_.contains("world"))
+res143: Option[scala.util.Either[String,List[Int]]] = None
+
+scala> leftE.left.filter(_.contains("world"))
+res144: Option[scala.util.Either[String,Nothing]] = Some(Left(Hello, world!))
+
+scala> leftE.left.filter(_.contains("dogs"))
+res145: Option[scala.util.Either[String,Nothing]] = None
+
+scala> leftE.left.filter[Int](_.contains("world"))
+res146: Option[scala.util.Either[String,Int]] = Some(Left(Hello, world!))
+
+scala> leftE.left.filter[Option[Double]](_.contains("world"))
+res147: Option[scala.util.Either[String,Option[Double]]] = Some(Left(Hello, world!))
+
+scala> rightE.right.filter { case 2 => false; case 5 => true }
+res148: Option[scala.util.Either[Nothing,Int]] = Some(Right(5))
+
+scala> rightE.right.filter[Double] { case 2 => false; case 5 => true }
+res149: Option[scala.util.Either[Double,Int]] = Some(Right(5))
+
+scala> rightE.right.filter[Int](_ == 5)
+res150: Option[scala.util.Either[Int,Int]] = Some(Right(5))
+
+scala> rightE.right.filter[String](_ == 5)
+res151: Option[scala.util.Either[String,Int]] = Some(Right(5))
+
+scala> leftE.right.filter[String](_ == 5)
+res152: Option[scala.util.Either[String,Int]] = None
+
+scala> leftE.right.filter[Double](_ == 5)
+res153: Option[scala.util.Either[Double,Int]] = None
+
+scala> leftE.right.filter(_ == 5)
+res154: Option[scala.util.Either[Nothing,Int]] = None
+```
 
 #### `forall`
 
