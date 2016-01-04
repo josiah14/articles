@@ -210,9 +210,14 @@ scala> y.forall({ case _: String => true; case _ =>  })
 
 scala> y.forall({ case_: String => true; case _ => false })
 res2: Boolean = false
+
+scala> (List(): List[Int]).forall(_ != null)
+res3: Boolean = true
 ```
 
 As you can see from the above, `forall` (and also `filter` and other related functions that take a lambda) can be quite handy, but you have to be careful to satisfy the type system when writing in your logic.  Most type errors should be caught by the Scala compiler, so if you have a good IDE, it should tell you when you're doing something that the Scala compiler doesn't like, but it should also be apparent from the error message above that you might not always get the most helpful error responses (take a look at the `scala.MatchError` when calling `forall` on `y` for the first time).  The best way to guard against running into these sorts of issues is to make sure you **1.** always provide a default case at the end to ensure all of your possible edge cases have a match, and **2.** make sure you don't test for cases that could never occur, such as in the last call of `forall` on `x` in the above example, where we try to match the contents of `x` on the `String` type when we already know via the type declaration on `x` that all of the items are `Int`s.  Scala's type system will catch such senseless attempts and actually prevent your code from compiling in these cases.
+
+Another thing to note from the above is the last operation in the example set.  You see that operating on an empty `List` always results in `forall` evaluating to `true`.  If you think about this for a second, it makes sense.  If the `List` contains no elements, then as long as the predicate allows `forall` to satisfy the type signature of the `List`, all elements in the list will satisfy every predicate, because there are no elements to prove the predicate false.  In other words, all elements in an empty `List`  will satisfy every predicate possible precisely because there are no elements.
 
 #### `fold`
 
@@ -2365,11 +2370,99 @@ res154: Option[scala.util.Either[Nothing,Int]] = None
 
 #### `forall`
 
+`forall` works on the abstract error handling types just like it does for the `List` type.  If there's is nothing in the successful bias of the type, or if there is nothing on the projection of `Either` being operated on, then `forall` always evaluates to `true`.  Otherwise, `forall` only evaluates to `false` if the value held by the type instance cases the predicate to evaluate to `false`.
+
 ##### Option
+
+For `Option`, `forall` works just like it does for single element and empty `List`s where `None` is the empty `List` value, and `Some` is the single element `List` value.
+
+```scala
+scala> val something: Option[String] = Some("hello!")
+something: Option[String] = Some(hello!)
+
+scala> val nothing: Option[String] = None
+nothing: Option[String] = None
+
+scala> something.forall(_.contains("hello"))
+res155: Boolean = true
+
+scala> something.forall(_.contains("jello"))
+res156: Boolean = false
+
+scala> nothing.forall(_.contains("hello"))
+res157: Boolean = true
+
+scala> nothing
+res158: Option[String] = None
+
+scala> nothing.forall(_.contains("jello"))
+res159: Boolean = true
+
+scala> nothing.forall(_ == null)
+res160: Boolean = true
+
+scala> nothing.forall(_ != null)
+res161: Boolean = true
+```
+
+There is really nothing tricky about `forall` when operating on an `Option`.  It works just the same as it does on `List`.
 
 ##### Try
 
+`forall` has not been implemented on `Try` as of this writing, so for now, you can just forget about it for instances of `Try`.
+
 ##### Either
+
+For `Either`, as with other functions on this type, `forall` is implemented only for the `LeftProjection` and `RightProjection` of this type, so to use `forall`, you first need to call `left` or `right` on your `Either` instance to get the projection you want.  Then, `forall` will return `true` if the `Either` is of the other projection, or else the result of running the predicate on the contained value if the `Either` instance is of the projection being operated on.
+
+Below is an illustration:
+
+```scala
+scala> val leftE: Either[Int, String] = Left(5)
+leftE: scala.util.Either[Int,String] = Left(5)
+
+scala> val rightE: Either[Int, String] = Right("Hello!")
+rightE: scala.util.Either[Int,String] = Right(Hello!)
+
+scala> leftE.right.forall(_.contains("Hello"))
+res166: Boolean = true
+
+scala> leftE.right.forall(_.contains("Jello"))
+res167: Boolean = true
+
+scala> leftE.right.forall(_ == null)
+res168: Boolean = true
+
+scala> leftE.right.forall(_ != null)
+res169: Boolean = true
+
+scala> leftE.left.forall(_ > 4)
+res170: Boolean = true
+
+scala> leftE.left.forall(_ > 5)
+res171: Boolean = false
+
+scala> rightE.right.forall(_.contains("Hello"))
+res172: Boolean = true
+
+scala> rightE.right.forall(_.contains("Hello"))
+res173: Boolean = true
+
+scala> rightE.right.forall(_.contains("Jello"))
+res174: Boolean = false
+
+scala> rightE.left.forall(_ > 4)
+res175: Boolean = true
+
+scala> rightE.left.forall(_ > 5)
+res176: Boolean = true
+
+scala> rightE.left.forall(_ == null)
+res177: Boolean = true
+
+scala> rightE.left.forall(_ != null)
+res178: Boolean = true
+```
 
 #### `fold`
 
@@ -2503,19 +2596,78 @@ hello, world!
 
 #### `zip`
 
+If you remember from the `List` type in the beginning, `zip` basically just takes two `List` instances and matches the elements together by index into tuples, with the elements from the first `List` that `zip` is called off of being the first element of each tuple, and the elements from the second `List`, passed into the `zip` function as an argument, being the second element of each tuple.
+
+
+The same is true of our abstract types.  If I `zip` two `Options` together that are both a `Some`, I will get back a `List` with a tuple where the first element of the tuple is the value inside of the `Some` that `zip` was called off of, and the second element of the tuple being the value of the `Some` that was passed into the `zip` function.  For `Either` types, it works similarly, except you have to declare which projection you want to to work on, first. `zip` is only implemented on `Option`, as far as the abstract types we are talking about, so you will not see a section, here, for `Try` or `Either`.
+
 ##### Option
 
-##### Try
+http://stackoverflow.com/questions/26345930/option-zip-returns-list-not-option
 
-##### Either
+Before talking about `Option`, you might want to take a peak at the above link.  It's worth noting that the Documentation is still wrong for the `zip` function on `Options`.  Although the API docs say it will return an `Option`, it really returns an `Iterable`.  If you are zipping two `Options` together, you will get back a `List`.  Zipping other types with an `Option` might return different types that are subtypes of `Iterable`.  To keep it simple, we'll just look at zipping `Options` with other `Options` and with `List`s, but you should feel free to experiment in the REPL with other types.
+
+```scala
+scala> val hello: Option[String] = Some("hello")
+hello: Option[String] = Some(hello)
+
+scala> val world: Option[String] = Some(", world!")
+world: Option[String] = Some(, world!)
+
+scala> val nothing: Option[String] = None
+nothing: Option[String] = None
+
+scala> hello.zip(world)
+res179: Iterable[(String, String)] = List((hello,, world!))
+
+scala> hello.zip(world).map { case (x, y) => x + y }
+res185: Iterable[String] = List(hello, world!)
+
+scala> hello.zip(nothing)
+res197: Iterable[(String, String)] = List()
+
+scala> nothing.zip(hello)
+res198: Iterable[(String, String)] = List()
+
+scala> hello.zip(nothing).map { case (x, y) => x + y }
+res199: Iterable[String] = List()
+
+scala> nothing.zip(hello).map { case (x, y) => x + y }
+res200: Iterable[String] = List()
+```
 
 #### `unzip`
 
+`unzip` on abstract types works just the same as it does for `List`.  It will unpair your tuples and give you back a tuple of 2 `List`s, the first `List` being made up of the first tuple elements, and the second `List` being made up of the second tuple elements.  As with `zip`, `unzip` is not implement for `Try` or `Either` as of this writing, so we have ommitted those sections for this function.
+
 ##### Option
 
-##### Try
+Like `zip`, `unzip`ping `Option`s returns a pair of `Iterable`s (in most cases `List`s).  If you try to `unzip` on a `None`, you will just get back two empty `List` instances in the result tuple.  The reason for this is that, no matter the operation, the function's type signature must be satisfied.  To do this, `unzip` interprets a `None` as an `Option` that holds a tuple with no elements, which would result in an empty `List` for each element of the result tuple.  Note, however, that if you try to call `unzip` on an `Option` that doesn't hold a tuple, you will get a type error (your code won't compile), so this logic doesn't apply for non-tuple `Option`s.
 
-##### Either
+```scala
+scala> Some(("hello", ", world!")).unzip
+res203: (Iterable[String], Iterable[String]) = (List(hello),List(, world!))
+
+scala> (Some(1): Option[Int]).unzip
+<console>:21: error: No implicit view available from Int => (A1, A2).
+       (Some(1): Option[Int]).unzip
+                              ^
+
+scala> (None: Option[(Int, Int)]).unzip
+res208: (Iterable[Int], Iterable[Int]) = (List(),List())
+
+scala> (None: Option[Int]).unzip
+<console>:21: error: No implicit view available from Int => (A1, A2).
+       (None: Option[Int]).unzip
+                           ^
+```
+
+Also worth noting is that the standard API also provides an `unzip3` if you have a 3 element tuple that you want to unzip.
+
+```scala
+scala> Some(("hello", ", ", "world!")).unzip3
+res206: (Iterable[String], Iterable[String], Iterable[String]) = (List(hello),List(", "),List(world!))
+```
 
 #### `nonEmpty`
 
