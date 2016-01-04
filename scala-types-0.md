@@ -2640,8 +2640,6 @@ res200: Iterable[String] = List()
 
 `unzip` on abstract types works just the same as it does for `List`.  It will unpair your tuples and give you back a tuple of 2 `List`s, the first `List` being made up of the first tuple elements, and the second `List` being made up of the second tuple elements.  As with `zip`, `unzip` is not implement for `Try` or `Either` as of this writing, so we have ommitted those sections for this function.
 
-##### Option
-
 Like `zip`, `unzip`ping `Option`s returns a pair of `Iterable`s (in most cases `List`s).  If you try to `unzip` on a `None`, you will just get back two empty `List` instances in the result tuple.  The reason for this is that, no matter the operation, the function's type signature must be satisfied.  To do this, `unzip` interprets a `None` as an `Option` that holds a tuple with no elements, which would result in an empty `List` for each element of the result tuple.  Note, however, that if you try to call `unzip` on an `Option` that doesn't hold a tuple, you will get a type error (your code won't compile), so this logic doesn't apply for non-tuple `Option`s.
 
 ```scala
@@ -2744,19 +2742,174 @@ res221: Boolean = false
 
 #### `orElse`
 
+`orElse` and the following functions are some of the most interesting and useful functions on these types.  The functions before were kind of just primer for these next two functions (`orElse` and `getOrElse`), and for the last capability, which is Comprehensions.
+
+`orElse` returns the type instance as it is if it's of the positively biased value or of the projection being operated on (in the case of `Either`), or the default value passed in as its argument otherwise.  Let's take a look at how this works with each type.
+
 ##### Option
+
+For `Option` types, `orElse` just returns the same `Option` if it is a `Some`, or the value passed in as its argument if it's a `None`.
+
+For example:
+
+```scala
+scala> val something: Option[Int] = Some(1)
+something: Option[Int] = Some(1)
+
+scala> val nothing: Option[Int] = None
+nothing: Option[Int] = None
+
+scala> something.orElse(Some(10))
+res222: Option[Int] = Some(1)
+
+scala> nothing.orElse(Some(10))
+res223: Option[Int] = Some(10)
+
+scala> nothing.orElse(10)
+<console>:22: error: type mismatch;
+ found   : Int(10)
+ required: Option[?]
+       nothing.orElse(10)
+                      ^
+
+scala> something.orElse(10)
+<console>:22: error: type mismatch;
+ found   : Int(10)
+ required: Option[?]
+       something.orElse(10)
+                        ^
+scala> something.orElse(Some("hello"))
+<console>:22: warning: a type was inferred to be `Any`; this may indicate a programming error.
+       something.orElse(Some("hello"))
+                            ^
+res226: Option[Any] = Some(1)
+```
+
+Note that the type system requires your 'else' value to be of the same type being operated on itself (in this case, an `Option`), but it's not as picky about which type the value inside of the `Option` should be.  It will still throw a warning if your else value would change the type in the `Option`, but the type system will still resolve it by giving you back an `Option[Any]` to satisfy the type signature of the operation.
+
+The powerful thing about this is that it allow you to continue chaining operations on your `Option` instances while explicitly handling your error case, without even leaving the context of the `Option` type.  You can think of this as a way of transforming the `None` case without needing all the verbosity of a `match` expression.
+
+```scala
+scala> val something: Option[Int] = Some(1)
+something: Option[Int] = Some(1)
+
+scala> val nothing: Option[Int] = None
+nothing: Option[Int] = None
+
+scala> something.map(_ + 2).map(_ % 3).orElse(Some(-1))
+res227: Option[Int] = Some(0)
+
+scala> nothing.map(_ + 2).map(_ % 3).orElse(Some(-1))
+res228: Option[Int] = Some(-1)
+```
 
 ##### Try
 
+`Try` works pretty much the same as `Option` for `orElse`.  If the value is a `Success`, you get back the same `Success` value, if it's a `Failure`, you get back the `Success` you passed in as the argument to `orElse`.
+
+```scala
+scala> val successful: Try[String] = Success("hello")
+successful: scala.util.Try[String] = Success(hello)
+
+scala> val failed: Try[String] = Failure(new Exception("oops"))
+failed: scala.util.Try[String] = Failure(java.lang.Exception: oops)
+
+scala> successful.map(_ + ", ").map(_ + "world!").orElse(Success("good-bye!"))
+res229: scala.util.Try[String] = Success(hello, world!)
+
+scala> failed.map(_ + ", ").map(_ + "world!").orElse(Success("good-bye!"))
+res230: scala.util.Try[String] = Success(good-bye!)
+```
+
 ##### Either
+
+Interestingly, `Either`, nor its `LeftProjection` nor `RightProjection`, implement `orElse`.  I'm not sure what the reason for this is, but since it's not implemented in the current API, we won't be digging into it, here.
 
 #### `getOrElse`
 
+`getOrElse` is a lot like `orElse`, except it takes you out of the type and allows you to declare a default value if there's nothing in the type (because it's either a `None`, or a `Failure`, or the other projection of the type).
+
+As a first illustration, let's see how `getOrElse` works on `Option`.
+
 ##### Option
+
+For `Option`, `getOrElse` will return the value inside the `Some` if it's a `Some` and, otherwise, it will return the value you pass in as its argument if it's a `None`.
+
+Here's some examples to help you grasp how this function works on this type:
+
+```scala
+scala> val something: Option[Int] = Some(1)
+something: Option[Int] = Some(1)
+
+scala> val nothing: Option[Int] = None
+nothing: Option[Int] = None
+
+scala> something.getOrElse(10)
+res232: Int = 1
+
+scala> nothing.getOrElse(10)
+res233: Int = 10
+
+scala> something.map(_ * 3).map(_ % 2).getOrElse(-1)
+res243: Int = 1
+
+scala> nothing.map(_ * 3).map(_ % 2).getOrElse(-1)
+res244: Int = -1
+```
 
 ##### Try
 
+For `Try` types, `getOrElse` works almost just like it does for `Option`, providing the value inside of the `Success` if it's a `Success`, and if it's a `Failure`, producing the value passed in as its argument.
+
+```scala
+scala> val successful: Try[String] = Success("hello")
+successful: scala.util.Try[String] = Success(hello)
+
+scala> val failed: Try[String] = Failure(new Exception("oops"))
+failed: scala.util.Try[String] = Failure(java.lang.Exception: oops)
+
+scala> successful.getOrElse("failure")
+res245: String = hello
+
+scala> failed.getOrElse("failure")
+res246: String = failure
+
+scala> successful.map(_ + ", ").map(_ + "world!").getOrElse("failure")
+res247: String = hello, world!
+
+scala> failed.map(_ + ", ").map(_ + "world!").getOrElse("failure")
+res248: String = failure
+```
+
 ##### Either
+
+For `Either` the same applies as for the above `Try` and `Option` types, except you have to declare a projection first.  If your value is the projection you chose to operate on, you get back the value inside of that projection.  Otherwise, you get back the value you passed into `getOrElse` as an argument.
+
+```scala
+scala> val leftE: Either[Int, String] = Left(5)
+leftE: scala.util.Either[Int,String] = Left(5)
+
+scala> val rightE: Either[Int, String] = Right("hello")
+rightE: scala.util.Either[Int,String] = Right(hello)
+
+scala> leftE.left.getOrElse(-33)
+res249: Int = 5
+
+scala> leftE.right.getOrElse("It was a Left")
+res251: String = It was a Left
+
+scala> rightE.left.getOrElse(-33)
+res252: Int = -33
+
+scala> rightE.right.getOrElse("It was a Right")
+res253: String = hello
+
+scala> rightE.right.getOrElse("It was a Right") + ", world!"
+res254: String = hello, world!
+
+scala> rightE.right.map(_ + ", world!").right.getOrElse("It was a Right")
+res255: String = hello, world!
+```
 
 #### Comprehensions
 
