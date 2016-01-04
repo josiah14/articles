@@ -2669,13 +2669,78 @@ scala> Some(("hello", ", ", "world!")).unzip3
 res206: (Iterable[String], Iterable[String], Iterable[String]) = (List(hello),List(", "),List(world!))
 ```
 
-#### `nonEmpty`
+##### Calling Option-only functions on Try and Either Instances (tangent discussion)
 
-##### Option
+It's worth noting that for instance of `Try`, if you really need a function that's only on the `Option` type, you can call `toOption` on your `Try` instance and then chain the function you want to call off of that.  For a lot of these functions, converting to an `Option` is no big deal because, if you remember, these operations are immutable, so your original instance of `Try` will remain intact after calling `toOption`, as it returns to you a new `Option` instance without altering your existing `Try` instance.
 
-##### Try
 
-##### Either
+Here's an example of how to use `toOption` to call `unzip` on a `Try` that is a `Success` containing a tuple.
+
+```scala
+scala> val successful: Try[(Int, Int)] = Success((1,2))
+successful: scala.util.Try[(Int, Int)] = Success((1,2))
+
+scala> successful.toOption.unzip
+res210: (Iterable[Int], Iterable[Int]) = (List(1),List(2))
+
+scala> successful
+res211: scala.util.Try[(Int, Int)] = Success((1,2))
+```
+
+Note that if your `Try` instance is a `Failure`, `toOption` will give you a `None`.
+
+```scala
+scala> val failed: Try[(Int, Int)] = Failure(new Exception("oops"))
+failed: scala.util.Try[(Int, Int)] = Failure(java.lang.Exception: oops)
+
+scala> failed.toOption
+res212: Option[(Int, Int)] = None
+
+scala> failed.toOption.unzip
+res213: (Iterable[Int], Iterable[Int]) = (List(),List())
+```
+
+The existence of `toOption` on `Try` instances and each of the `Either` projections is probably why a lot of the functions on `Option` are not directly implemented for `Try` and `Either`.  We skip most of these `Option`-only functions for this article because I want to focus more heavily on things that all of the error-handling abstract types have in common.  But you should certainly go through the API docs and try out some of these additional functions for yourself in the REPL and get used to them, as they can come in handy.
+
+Speaking of `Either`, if you are wondering how `toOption` works on each of its projections, it works just the same as it does on `Try`, except that the case that causes `toOption` to evaluate to `None` is the case where the `Either` being operated on is of the other projection from the one declared.
+
+Here is an example:
+
+```scala
+scala> leftE.left.toOption
+res214: Option[Int] = Some(5)
+
+scala> leftE.right.toOption
+res215: Option[String] = None
+
+scala> rightE.left.toOption
+res216: Option[Int] = None
+
+scala> rightE.right.toOption
+res217: Option[String] = Some(hello)
+```
+
+#### `nonEmpty` and `isEmpty`
+
+`nonEmpty` and `isEmpty` are another couple of those functions that are only available on `Option` instances, so if you want to use either one of these on `Try` or `Either`, you will have to convert your abstract type instance to an `Option` first.
+
+These functions sound exactly like what they are - they just tell you whether you have a `Some` or a `None` `Option` instance.  If it's a `Some`, `nonEmpty` returns `true`, while `isEmpty` returns `false`.  If you have a `None`, it's the opposite; `nonEmpty` returns `false` while `isEmpty` returns `true`.
+
+Here are some examples:
+
+```scala
+scala> something.isEmpty
+res218: Boolean = false
+
+scala> something.nonEmpty
+res219: Boolean = true
+
+scala> nothing.isEmpty
+res220: Boolean = true
+
+scala> nothing.nonEmpty
+res221: Boolean = false
+```
 
 #### `orElse`
 
