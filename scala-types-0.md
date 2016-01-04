@@ -2913,9 +2913,92 @@ res255: String = hello, world!
 
 #### Comprehensions
 
+Now, we get to tie everything back together with Comprehensions.  You will find that Comprehensions will be one of the most powerful Scala features for helping you easily work with abstract types like `Option`, `Try`, and `Either`.
+
+If you remember with `List`, Comprehensions allowed us to pull the value(s) from one or more `List`s and used them together in an operation via a single statement.  For types, it works just the same; Comprehensions will allow us to pull values from multiple types and use them together in the same operation - even if they are from different types!
+
+When using comprehensions on abstract types, think of each type as a `List` that may hold one value, or no values.  We use the `for` clause of the comprehension to get the values out of our abstract types, and use an `if` clause to place conditions or restrictions on our results (for instance, to create a filter on which results get returned, like the `WHERE` clause in SQL).
+
+It's also worth noting that comprehensions will keep us within our type.  For example, if we are working with `Option`s, we will get our result back within the context of the `Option` type.
+
+Let's start by looking at some homogenous type examples.
+
 ##### Option
+
+First, let's look at a simple "hello world" example where we are working with all `Some` values so that you can have a refresher of the Scala syntax for comprehensions and get you back into using this Scala feature gently.
+
+```scala
+scala> val hello: Option[String] = Some("hello")
+hello: Option[String] = Some(hello)
+
+scala> val comma: Option[String] = Some(", ")
+comma: Option[String] = Some(, )
+
+scala> val world: Option[String] = Some("world")
+world: Option[String] = Some(world)
+
+scala> val exclamationPoint: Option[String] = Some("!")
+exclamationPoint: Option[String] = Some(!)
+
+scala> for (
+     | helloStr <- hello;
+     | commaStr <- comma;
+     | worldStr <- world;
+     | exclamationStr <- exclamationPoint
+     | ) yield (helloStr + commaStr + worldStr + exclamationStr)
+res256: Option[String] = Some(hello, world!)
+```
+
+Okay, this is pretty cool, right?  In just a few lines of code, I can extract the values out of multiple `Option` instances and write an expression at the end (in the `yield` block) that declares how to aggregate the results.
+
+So, what happens if I have some `None` values in there?  Well, if there is a `None` value in our comprehension expression, the result will be a `None`.  This is the reason for why comprehensions operate within our type - so that there is a value for expressing when a negative/empty value is encountered.
+
+Here is an illustration of what happens when one of the `Options` operated on is a `None`:
+
+```scala
+scala> val nothing: Option[String] = None
+nothing: Option[String] = None
+
+scala> for (
+     | helloStr <- hello;
+     | commaStr <- comma;
+     | worldStr <- nothing;
+     | exclamationStr <- exclamationPoint
+     | ) yield (helloStr + commaStr + worldStr + exclamationStr)
+res258: Option[String] = None
+```
+
+Now, let's look at one that's got a conditional in it.
+
+```scala
+scala> for (
+     | helloStr <- hello;
+     | commaStr <- comma;
+     | worldStr <- world;
+     | exclamationStr <- exclamationPoint;
+     | triggerNum <- trigger
+     | if triggerNum != 0
+     | ) yield (helloStr + commaStr + worldStr + exclamationStr)
+res259: Option[String] = None
+
+scala> for (
+     | helloStr <- hello;
+     | commaStr <- comma;
+     | worldStr <- world;
+     | exclamationStr <- exclamationPoint;
+     | triggerNum <- trigger
+     | if triggerNum == 0
+     | ) yield (helloStr + commaStr + worldStr + exclamationStr)
+res260: Option[String] = Some(hello, world!)
+```
+
+The above illustrates conditions pretty well.  If the condition in the `if` statement of the comprehension evaluates to `true`, you get back the result of running the operation in the `yield` expression.  Otherwise, if the `if` expression evaluates to `false`, you get back a `None`.
+
+As you can see, here, there's a lot of power and expression in the comprehension syntax for these abstract types.
 
 ##### Try
 
 ##### Either
+
+#### Putting It All Together
 
