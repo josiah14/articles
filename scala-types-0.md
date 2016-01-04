@@ -3068,5 +3068,108 @@ res265: scala.util.Try[Int] = Failure(java.util.NoSuchElementException: Predicat
 
 ##### Either
 
+With `Either`, comprehensions work no differently, except to pull the value out of your type, you need to tell it which projection you want to work with each time you pull a value out of an `Either` instance in your `for` expression.
+
+Here are some examples.  They get pretty involved, so read them closely:
+
+```scala
+scala> val leftE: Either[Int, String] = Left(-3)
+leftE: scala.util.Either[Int,String] = Left(-3)
+
+scala> val hello: Either[Int, String] = Right("hello")
+hello: scala.util.Either[Int,String] = Right(hello)
+
+scala> val world: Either[Int, String] = Right("world")
+world: scala.util.Either[Int,String] = Right(world)
+
+scala> val comma: Either[Int, String] = Right(", ")
+comma: scala.util.Either[Int,String] = Right(, )
+
+scala> val leftA: Either[Int, String] = Left(5)
+leftA: scala.util.Either[Int,String] = Left(5)
+
+scala> val leftB: Either[Int, String] = Left(12)
+LeftB: scala.util.Either[Int,String] = Left(12)
+
+scala> val leftC: Either[Int, String] = Left(14)
+LeftC: scala.util.Either[Int,String] = Left(14)
+
+scala> for (
+     | helloStr <- hello.left;
+     | commaStr <- comma.left;
+     | worldStr <- world.left
+     | ) yield (helloStr + commaStr + worldStr)
+res268: scala.util.Either[Int,String] = Right(hello)
+
+scala> for (
+     | helloStr <- hello.right;
+     | commaStr <- comma.right;
+     | worldStr <- world.right
+     | ) yield (helloStr + commaStr + worldStr)
+res270: scala.util.Either[Int,String] = Right(hello, world)
+
+scala> for (
+     | helloStr <- hello.right;
+     | a <- leftA.left;
+     | b <- leftB.left
+     | ) yield (helloStr + (a + b).toString)
+<console>:25: warning: a type was inferred to be `Any`; this may indicate a programming error.
+       helloStr <- hello.right;
+                ^
+res273: scala.util.Either[Any,String] = Left(hello17)
+
+scala> for (
+     | helloStr <- hello.right;
+     | a <- leftA.left;
+     | b <- leftB.left
+     | ) yield (helloStr + (a + b).toString)
+<console>:25: warning: a type was inferred to be `Any`; this may indicate a programming error.
+       helloStr <- hello.right;
+                ^
+res276: scala.util.Either[Any,String] = Left(hello17)
+
+scala> for (
+     | helloStr <- hello.right;
+     | a <- leftA.right;
+     | b <- leftB.right
+     | ) yield (helloStr + a + b)
+res277: scala.util.Either[Int,String] = Left(5)
+
+scala> for (
+     | a <- leftA.left;
+     | b <- leftB.left;
+     | c <- leftC.left
+     | ) yield (a + b + c)
+res281: scala.util.Either[Int,String] = Left(31)
+
+scala> for (
+     | a: Int <- leftA.left;
+     | b: Int <- leftB.left;
+     | c: Int <- leftC.left
+     | if Math.pow(a, 2) + Math.pow(b, 2) == Math.pow(c, 2)
+     | ) yield (a + b + c)
+<console>:27: warning: `withFilter' method does not yet exist on scala.util.Either.LeftProjection[Int,String], using `filter' method instead
+       a: Int <- leftA.left;
+                       ^
+<console>:28: warning: `withFilter' method does not yet exist on scala.util.Either.LeftProjection[Int,String], using `filter' method instead
+       b: Int <- leftB.left;
+                       ^
+<console>:29: warning: `withFilter' method does not yet exist on scala.util.Either.LeftProjection[Int,String], using `filter' method instead
+       c: Int <- leftC.left
+                       ^
+<console>:30: error: type mismatch;
+ found   : Int => Boolean
+ required: scala.util.Either[Int,Nothing] => Boolean
+       if Math.pow(a, 2) + Math.pow(b, 2) == Math.pow(c, 2)
+                                          ^
+
+```
+
+In the above examples, if you read closely, you can see that the comprehension expression either returns the value of the computation in the `yield` expression if a value is found for each `Either` instance in the expected projection, or else the comprehension returns the value of the first `Either` instance whose value is the other projection.  That's the basic understanding of comprehensions using the `Either` type.  You DO have to remember to declare which projection you want every time you want to extract a value from an `Either` instance in your comprehensions.
+
+It's important to pay close attention to the above examples, because the implementation of `Either` has some tricky aspects and, some even say flaws, regarding its implementation.  Perhaps the most important thing to note is that the type system cannot figure out how to handle `if` conditionals in `Either` comprehensions because it doesn't know how to figure out what the default value should be for the result should the conditional evaluate to `false`.  Even more importantly, the error in such a case is a bit convoluted and difficult to understand, especially for Scala beginners, so it's best to remember that `Either` comprehensions don't support `if` conditionals for filtering the results.
+
+The other main thing to note is that if you try to get values out of the `left` of some `Either` instances, and the `right` on others, Scala will often get confused and issue a warning saying it couldn't resolve the types defaulting the unknown type parameters for the `Either` to `Any`.  This warning may happen even if all of the `Either` instances you extract values from are of the same type.  I'm not sure why this issue exists, but my guess is it's due to an unresolved bug in the compiler.
+
 #### Putting It All Together
 
