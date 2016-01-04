@@ -3120,16 +3120,6 @@ res273: scala.util.Either[Any,String] = Left(hello17)
 
 scala> for (
      | helloStr <- hello.right;
-     | a <- leftA.left;
-     | b <- leftB.left
-     | ) yield (helloStr + (a + b).toString)
-<console>:25: warning: a type was inferred to be `Any`; this may indicate a programming error.
-       helloStr <- hello.right;
-                ^
-res276: scala.util.Either[Any,String] = Left(hello17)
-
-scala> for (
-     | helloStr <- hello.right;
      | a <- leftA.right;
      | b <- leftB.right
      | ) yield (helloStr + a + b)
