@@ -2998,6 +2998,74 @@ As you can see, here, there's a lot of power and expression in the comprehension
 
 ##### Try
 
+`Try` works much the same as `Option` does for comprehensions.  If the values are `Success` values, your comprehension expression will extract the values out of those `Success` instances and apply them t o the expression in the `yield` portion to produce an aggregated result.  Otherwise, you will get back the first `Failure` instance encountered.
+
+Let's look at a basic example:
+
+```scala
+scala> val sideA: Try[Int] = Success(5)
+sideA: scala.util.Try[Int] = Success(5)
+
+scala> val sideB: Try[Int] = Success(12)
+sideB: scala.util.Try[Int] = Success(12)
+
+scala> val sideC: Try[Int] = Success(13)
+sideC: scala.util.Try[Int] = Success(13)
+
+scala> val failed: Try[Int] = Failure(new Exception("oops"))
+failed: scala.util.Try[Int] = Failure(java.lang.Exception: oops)
+
+scala> for (
+     | a <- sideA;
+     | b <- sideB;
+     | c <- sideC
+     | ) yield (a + b + c)
+res261: scala.util.Try[Int] = Success(30)
+
+scala> for (
+     | a <- sideA;
+     | x <- failed;
+     | b <- sideB;
+     | y <- failed0;
+     | c <- sideC
+     | ) yield (a + b + c)
+res262: scala.util.Try[Int] = Failure(java.lang.Exception: oops)
+
+scala> for (
+     | a <- sideA;
+     | x <- failed0;
+     | b <- sideB;
+     | y <- failed;
+     | c <- sideC
+     | ) yield (a + b + c + x)
+res263: scala.util.Try[Int] = Failure(java.lang.Exception: whoops)
+```
+
+If you supply a predicate, you will get a `NoSuchElementException` back that is wrapped in a `Failure`.
+
+For this next example, let's only return the perimeter of our triangle if it's a right triangle to illustrate how `if` conditionals work in `Try` comprehensions:
+
+```scala
+scala> for (
+     | a <- sideA;
+     | b <- sideB;
+     | c <- sideC
+     | if Math.pow(a, 2) + Math.pow(b, 2) == Math.pow(c, 2)
+     | ) yield (a + b + c)
+res264: scala.util.Try[Int] = Success(30)
+
+scala> val sideC: Try[Int] = Success(14)
+sideC: scala.util.Try[Int] = Success(14)
+
+scala> for (
+     | a <- sideA;
+     | b <- sideB;
+     | c <- sideC
+     | if Math.pow(a, 2) + Math.pow(b, 2) == Math.pow(c, 2)
+     | ) yield (a + b + c)
+res265: scala.util.Try[Int] = Failure(java.util.NoSuchElementException: Predicate does not hold for 14)
+```
+
 ##### Either
 
 #### Putting It All Together
