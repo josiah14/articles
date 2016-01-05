@@ -3018,7 +3018,7 @@ res255: String = hello, world!
 
 Now, we get to tie everything back together with Comprehensions.  You will find that Comprehensions will be one of the most powerful Scala features for helping you easily work with abstract types like `Option`, `Try`, and `Either`.
 
-If you remember with `List`, Comprehensions allowed us to pull the value(s) from one or more `List`s and used them together in an operation via a single statement.  For types, it works just the same; Comprehensions will allow us to pull values from multiple types and use them together in the same operation - even if they are from different types!
+If you remember with `List`, Comprehensions allowed us to pull the value(s) from one or more `List`s and used them together in an operation via a single statement.  For types, it works just the same; Comprehensions will allow us to pull values from multiple type instances of the same type and use them together in the same operation. 
 
 When using comprehensions on abstract types, think of each type as a `List` that may hold one value, or no values.  We use the `for` clause of the comprehension to get the values out of our abstract types, and use an `if` clause to place conditions or restrictions on our results (for instance, to create a filter on which results get returned, like the `WHERE` clause in SQL).
 
