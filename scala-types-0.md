@@ -2740,6 +2740,109 @@ scala> nothing.nonEmpty
 res221: Boolean = false
 ```
 
+#### Recap - Using the Collections Functions Together Over Multiple Types and Instances
+
+Remember our code for working with the Apache HTTP library's `HttpClient`?  Well, if you don't, here's the version of the code we left off with after talking about the functions for flattening out and mapping over our abstract types.
+
+```scala
+scala> import scala.util.{Try, Success, Failure, Either, Left, Right}
+import scala.util.{Try, Success, Failure, Either, Left, Right}
+
+scala> import org.apache.http.impl.client.DefaultHttpClient
+import org.apache.http.impl.client.DefaultHttpClient
+
+scala> import org.apache.http.client.methods.{HttpGet, CloseableHttpResponse}
+import org.apache.http.client.methods.{HttpGet, CloseableHttpResponse}
+
+scala> import org.apache.http.message.BasicStatusLine
+import org.apache.http.message.BasicStatusLine
+
+scala> import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
+import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
+
+scala> import com.redis._
+import com.redis._
+
+scala> val redis: RedisClient = new RedisClient("localhost", 6379)
+redis: com.redis.RedisClient = localhost:6379
+
+scala> redis.set("uri-requested", "http://dstconnect.dstcorp.net/display/dstconnect/Home")
+res0: Boolean = true
+
+scala> val httpClient: DefaultHttpClient = new DefaultHttpClient()
+httpClient: org.apache.http.impl.client.DefaultHttpClient = org.apache.http.impl.client.DefaultHttpClient@1a97e2a9
+
+scala> def handleHttpResponse(httpResponse: Try[CloseableHttpResponse]): Try[Either[StatusLine, HttpEntity]] =
+     |   httpResponse map { response =>
+     |     val statusLine = response.getStatusLine()
+     |     statusLine.getStatusCode() match {
+     |       case code if 100 until 227 contains code => Right(response.getEntity())
+     |       case code if 300 until 500 contains code => Left(statusLine)
+     |       case code => throw new Exception("Got status code: " + code.toString + " with message: " + statusLine.getReasonPhrase())
+     |     }
+     |   }
+handleHttpResponse: (httpResponse: scala.util.Try[org.apache.http.client.methods.CloseableHttpResponse])scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]
+
+scala> val httpResponse: Option[Try[Either[StatusLine, HttpEntity]]] =
+    |    redis.get("uri-requested").map(uri => handleHttpResponse(Try(httpClient.execute(new HttpGet(uri)))))
+HttpResponse: Option[scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]] = Some(Success(Right(org.apache.http.conn.BasicManagedEntity@397e3d8a)))
+
+scala> Try(httpResponse.get).flatten match {
+     |   case Success(response) =>
+     |     response.right.map(_.getContent().read()).right.foreach(println)
+     |     response.left.map(_.getReasonPhrase()).left.foreach(println)
+     |   case Failure(e) => println(e)
+     | })
+60
+```
+
+Let's investigate how we might use some of the functions we just looked at to further refactor this code.  First, notice that we are going to, now, wrap our `new RedisClient` instantiation call in a `Try`.  We know enough by now that we shouldn't be needing to reduce the complexity of this example.  We're also going to refactor `handleHttpResponse` so that it takes a raw `CloseableHttpResponse` instead of one wrapped in a `Try`.  We should be capable, at this point, of using our Collections functions so that we don't have much occasion for passing abstract types into our functions.
+
+```scala
+scala> val redis: Try[RedisClient] = Try(new RedisClient("localhost", 6379))
+redis: scala.util.Try[com.redis.RedisClient] = Success(localhost:6379)
+
+scala> redis.map(_.set("uri-requested", "http://dstconnect.dstcorp.net/display/dstconnect/Home"))
+res286: scala.util.Try[Boolean] = Success(true)
+
+scala> val httpClient: Try[DefaultHttpClient] = { redis
+     |   .map(_.set("uri-requested", "http://dstconnect.dstcorp.net/display/dstconnect/Home"))
+     |   .filter(_ == true)
+     |   .map(_ => new DefaultHttpClient()) }
+httpClient: scala.util.Try[org.apache.http.impl.client.DefaultHttpClient] = Success(org.apache.http.impl.client.DefaultHttpClient@5304d614)
+
+scala> def handleHttpResponse(httpResponse: CloseableHttpResponse): Try[Either[StatusLine, HttpEntity]] = {
+     |   val statusLine = httpResponse.getStatusLine()
+     |   Try(statusLine.getStatusCode() match {
+     |     case code if 100 until 227 contains code => Right(httpResponse.getEntity())
+     |     case code if 300 until 500 contains code => Left(statusLine)
+     |     case code => throw new Exception("Got status code: " + code.toString + " with message: " + statusLine.getReasonPhrase())
+     |   })
+     | }
+handleHttpResponse: (httpResponse: org.apache.http.client.methods.CloseableHttpResponse)scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]
+
+scala> val httpResponse: Try[Option[Try[Either[StatusLine, HttpEntity]]]] = { redis.map(
+     |   _.get("uri-requested").map(uri => httpClient.map(_.execute(new HttpGet(uri))).flatMap(handleHttpResponse(_)))
+     | ) }
+httpResponse: scala.util.Try[Option[scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]]] = Success(Some(Success(Right(org.apache.http.conn.BasicManagedEntity@1d358f17))))
+
+scala> httpResponse.flatMap(
+     |   _.fold(Failure(new Exception("No URI at Redis key")): Try[Either[StatusLine, HttpEntity]])(identity(_))
+     |   .map(_.fold(statusLine => println(statusLine.getReasonPhrase()), httpEntity => println(httpEntity.getContent().read())))
+     | ).fold(System.err.println(_), _ => Unit)
+60
+
+scala>
+```
+
+The above example isn't much more code, but it has better error handling and type-safety so that more errors are caught at compile-time.  The first thing to note is that we wrap our `RedisClient` instance in a `Try` because, if there is no Redis server available at the provided address and port, it could throw an `Exception`.  Then, we find that most of what we want to do with the `RedisClient` instance can be done through mapping, but we can now use `filter` to check if we successfully set the URI in Redis.  If not, `filter` will return a `Failure` with an appropriate exception, otherwise, the subsequent `map` operation creates our `DefaultHttpClient`.  What this means, so far, is that if we fail to set the URI properly in Redis, the rest of the code up until the final `fold` command at the very end won't get executed, and the only thing that will run is the first argument to the very last `fold` command, namely `System.err.println(_)`.
+
+Now, the code for `handleHttpResponse` and for creating the `httpResponse` object is only refactored a little bit to make better use of our `map` and `flatMap` functions.  But there is nothing new here in terms of content that we didn't see from the last time we looked at this code.  But take a look at how we use `httpResponse`; `flatMap` allows us to take the internal `fold` instruction that converts our `Option` to a `Try` and `flatten` it out to a `Try[Either[StatusLine, HttpEntity]]` instead of a `Try[Try[Either[StatusLine, HttpEntity]]]`.  This allows us to handle all of our error logging/printing for this entire section of code in the final `fold` that trails the closing parenthesis of the `flatMap` function.  This is pretty neat - using mapping, flattening, and folding operations, we've been able to declare how to work with the values in our datatypes assuming they are the successful values we expect, with the one exception of the `fold` on our nested `Option` at the end where we provide a custom `Exception` for the event where we failed to retrieve the `URI` from the Redis server.
+
+The only other `fold` operation is the one inside of the `map` operation, inside of the `httpResponse.flatMap` function call.  This `fold` operates on our `Either` instance, which holds our actual response from the `DefaultHttpClient` after making its GET request to the URI from the Redis key.  In this `fold` operation, we declare what to do with both the `Left` and `Right` cases of our httpResponse `Either` using a simple lambda expression for each.  It is concise enough that this still all fits on one line.
+
+Of course, if we were writing our code outside of the REPL, we might want to move some of the error handling up to some of our intermediate result objects to help cut down on the crazy type signatures we ended up with (especially the one for the `httpResponse` object that was as `Try[Option[Try[Either[StatusLine, HttpEntity]]]]`).  But I think this current example goes far enough to demonstrate the power and usefulness of these Collections functions on our abstract data types.
+
 #### `orElse`
 
 `orElse` and the following functions are some of the most interesting and useful functions on these types.  The functions before were kind of just primer for these next two functions (`orElse` and `getOrElse`), and for the last capability, which is Comprehensions.
@@ -3163,3 +3266,139 @@ The other main thing to note is that if you try to get values out of the `left` 
 
 #### Putting It All Together
 
+Let's take a last look at our old and overused example of the Apache HttpClient.  This is the code we left off with:
+
+```scala
+scala> import scala.util.{Try, Success, Failure, Either, Left, Right}
+import scala.util.{Try, Success, Failure, Either, Left, Right}
+
+scala> import org.apache.http.impl.client.DefaultHttpClient
+import org.apache.http.impl.client.DefaultHttpClient
+
+scala> import org.apache.http.client.methods.{HttpGet, CloseableHttpResponse}
+import org.apache.http.client.methods.{HttpGet, CloseableHttpResponse}
+
+scala> import org.apache.http.message.BasicStatusLine
+import org.apache.http.message.BasicStatusLine
+
+scala> import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
+import org.apache.http.{StatusLine, ProtocolVersion, HttpResponse, HttpEntity}
+
+scala> import com.redis._
+import com.redis._
+
+scala> val redis: Try[RedisClient] = Try(new RedisClient("localhost", 6379))
+redis: scala.util.Try[com.redis.RedisClient] = Success(localhost:6379)
+
+scala> redis.map(_.set("uri-requested", "http://dstconnect.dstcorp.net/display/dstconnect/Home"))
+res286: scala.util.Try[Boolean] = Success(true)
+
+scala> val httpClient: Try[DefaultHttpClient] = { redis
+     |   .map(_.set("uri-requested", "http://dstconnect.dstcorp.net/display/dstconnect/Home"))
+     |   .filter(_ == true)
+     |   .map(_ => new DefaultHttpClient()) }
+httpClient: scala.util.Try[org.apache.http.impl.client.DefaultHttpClient] = Success(org.apache.http.impl.client.DefaultHttpClient@5304d614)
+
+scala> def handleHttpResponse(httpResponse: CloseableHttpResponse): Try[Either[StatusLine, HttpEntity]] = {
+     |   val statusLine = httpResponse.getStatusLine()
+     |   Try(statusLine.getStatusCode() match {
+     |     case code if 100 until 227 contains code => Right(httpResponse.getEntity())
+     |     case code if 300 until 500 contains code => Left(statusLine)
+     |     case code => throw new Exception("Got status code: " + code.toString + " with message: " + statusLine.getReasonPhrase())
+     |   })
+     | }
+handleHttpResponse: (httpResponse: org.apache.http.client.methods.CloseableHttpResponse)scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]
+
+scala> val httpResponse: Try[Option[Try[Either[StatusLine, HttpEntity]]]] = { redis.map(
+     |   _.get("uri-requested").map(uri => httpClient.map(_.execute(new HttpGet(uri))).flatMap(handleHttpResponse(_)))
+     | ) }
+httpResponse: scala.util.Try[Option[scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]]] = Success(Some(Success(Right(org.apache.http.conn.BasicManagedEntity@1d358f17))))
+
+scala> httpResponse.flatMap(
+     |   _.fold(Failure(new Exception("No URI at Redis key")): Try[Either[StatusLine, HttpEntity]])(identity(_))
+     |   .map(_.fold(statusLine => println(statusLine.getReasonPhrase()), httpEntity => println(httpEntity.getContent().read())))
+     | ).fold(System.err.println(_), _ => Unit)
+60
+
+scala>
+```
+
+With our latest bag of tricks, `orElse`, `getOrElse`, and Comprehensions, the above code can be turned into the following:
+
+```scala
+scala> val redisClient: Try[RedisClient] = Try(new RedisClient("localhost", 6379))
+redis: scala.util.Try[com.redis.RedisClient] = Success(localhost:6379)
+
+scala> val httpClient: Try[DefaultHttpClient] = { redisClient
+     |   .map(_.set("uri-requested", "http://dstconnect.dstcorp.net/display/dstconnect/Home"))
+     |   .filter(_ == true)
+     |   .map(_ => new DefaultHttpClient()) }
+httpClient: scala.util.Try[org.apache.http.impl.client.DefaultHttpClient] = Success(org.apache.http.impl.client.DefaultHttpClient@3d3caa14)
+
+scala> def handleHttpResponse(httpResponse: CloseableHttpResponse): Try[Either[StatusLine, HttpEntity]] = {
+     |   val statusLine = httpResponse.getStatusLine()
+     |   Try(statusLine.getStatusCode() match {
+     |     case code if 100 until 227 contains code => Right(httpResponse.getEntity())
+     |     case code if 300 until 500 contains code => Left(statusLine)
+     |     case code => throw new Exception("Got status code: " + code.toString + " with message: " + statusLine.getReasonPhrase())
+     |   })
+     | }
+handleHttpResponse: (httpResponse: org.apache.http.client.methods.CloseableHttpResponse)scala.util.Try[scala.util.Either[org.apache.http.StatusLine,org.apache.http.HttpEntity]]
+
+scala> val result: Try[Unit] = for (
+     |   uri <- redisClient.map(_.get("uri-requested").getOrElse(throw new Exception("No URI found at Redis key")));
+     |   res <- httpClient.map(_.execute(new HttpGet(uri))).flatMap(handleHttpResponse(_))
+     | ) yield (
+     |   res.fold(statusLine => println(statusLine.getReasonPhrase()), httpEntity => println(httpEntity.getContent.read()))
+     | )
+result: scala.util.Try[Unit] =
+Failure(java.lang.IllegalStateException: Invalid use of BasicClientConnManager: connection still allocated.
+Make sure to release the connection before allocating another one.)
+
+scala> result.fold(System.err.println(_), _ => Unit)
+java.lang.IllegalStateException: Invalid use of BasicClientConnManager: connection still allocated.
+Make sure to release the connection before allocating another one.
+res7: Any = ()
+
+scala>
+```
+
+You may argue whether this code is better than the code above, but at least you can see here that you have some flexibility and options in terms of how you want to express the behavior of your program without sacrificing the type safety of your code. I think this last example is the easiest to read of all of the others for this particular code sample.
+
+# Conclusions
+
+It must be admitted that this article's purpose is not only to serve as a kind of tutorial for the Scala error handling types and their capabilities, but also as an investigation into the usefulness of these types.  I will talk about my conclusions in a Pros and Cons list below.
+
+## Pros
+
+- Compared to traditional Java techniques such as using `try ... catch ... finally` and returning `null`, the Scala error handling types enable the programmer to handle most errors in a type-safe way that reduces the kinds of possible runtime errors that are possible.  Examples of this are the use of `Option` in place of `null` enables the compiler to ensure that the `null` case is handled in most circumstances (which, in-turn, all but eliminates the possibility of a runtime `NullPointerException`).  Similarly, using `Try` instead of `try ... catch ... finally` ensures that the programmer is aware of the possibility of `Exceptions` occurring, and the compiler will not allow code to be written that overlooks this possibility (mitigating the problem of uncaught exceptions remaining unhandled and bubbling up to the more abstract parent functions, where they are more difficult to troubleshoot).
+- There is more power and expressivity in using the error handling types.  In using the Collections functions such as `map`, `flatMap`, `fold`, `orElse`, `getOrElse`, and comprehensions, error reporting and side-effecting code can be deferred until later, pushing side effects out to the edges of the codebase and encouraging a programming style that prefers to keep the core of the program immutable, comprised of small functions, and easy to test and reason about.  It is also easier, with these high-level functions and language features, to reduce the level of nesting in the code, which typically makes it easier to read and reason about.  In addition to this, the `Either` type provides a powerful data structure for handling non-critical errors in a way that does not propogate run-time throwables, as well as a way to express functions whose return value is best utilized as a disjoint union.
+- It's not mentioned in the above article, but the high-level collections functions on the types are easily parallelizable, having `par` implementations on the Scala Parallel Collections libraries.  This may be a topic for future research to investigate the true power and capabilities of Scala's parallel collections libraries.
+
+## Cons and Shortcomings
+
+- Although the types do provide a lot of additional type safety without sacrificing much flexibility (and especially gaining flexibility over Java), functions like `foreach`, `get`, `rescue`, etc. can still leave the door open for errors such as `Exceptions`  getting "swallowed", or, in the case of `get`, allowing exceptions to be rethrown outside of the type, which enables them to propogate unhandled up through the code base to the highest level functions (the main problem the `Try` type is there to solve).  Despite this shortcoming, the API still makes it pretty obvious to the programmer when he is doing something "dangerous", so this doesn't completely negate the advantages of the types, here, over the traditional Java techniques.
+- The APIs for some of the types seem incomplete.  For example, `Try` did not have a `fold` implementation until the most recent version of Scala (2.12.0), and `Either` comprehensions can throw error messages warning that `withFilter` isn't implemented by the `LeftProjection` or `RightProjection` yet (but the messages indicate that they might have plans to implement them in the future?).  This makes the APIs for each of the types harder to reason about because it's not obviously apparent which functions are supported by which types without closely studying the documentation or experimenting a lot with the types in the REPL.
+- Instead of implemented many of the Collections API functions directly on each type, and using `trait`s or super types to mixin the functions required for each abstract type, many of the functions were implemented on `Option`, and then a `toOption` function was provided on each type (or, in the case of `Either`, on each projection of the type).  This makes it somewhat unclear, like in the above, which functions to expect on each type, and adds the problem that to work with certain functions, I can't remain in my current type, but must move my data into the `Option` context.  This also makes it unclear regarding what exactly these types have in common that allows them all to have implementations of the same functions (is it because the type is a special case of `Functor`, or `Monoid`, or `Applicative`, ... ? Or is something not implemented on `Either` because it cannot be resolved to an instance of `Alternative`? ).  This often seems to be the culprit of covoluted error messages like the following:
+```scala
+scala> for (
+     | a: Int <- leftA.left;
+     | b: Int <- leftB.left;
+     | c: Int <- leftC.left
+     | if Math.pow(a, 2) + Math.pow(b, 2) == Math.pow(c, 2)
+     | ) yield (a + b + c)
+<console>:27: warning: `withFilter' method does not yet exist on scala.util.Either.LeftProjection[Int,String], using `filter' method instead
+       a: Int <- leftA.left;
+                       ^
+<console>:28: warning: `withFilter' method does not yet exist on scala.util.Either.LeftProjection[Int,String], using `filter' method instead
+       b: Int <- leftB.left;
+                       ^
+<console>:29: warning: `withFilter' method does not yet exist on scala.util.Either.LeftProjection[Int,String], using `filter' method instead
+       c: Int <- leftC.left
+                       ^
+<console>:30: error: type mismatch;
+ found   : Int => Boolean
+ required: scala.util.Either[Int,Nothing] => Boolean
+       if Math.pow(a, 2) + Math.pow(b, 2) == Math.pow(c, 2)
+       ^
+```
