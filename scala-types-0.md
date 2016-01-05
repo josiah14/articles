@@ -3402,3 +3402,4 @@ scala> for (
        if Math.pow(a, 2) + Math.pow(b, 2) == Math.pow(c, 2)
        ^
 ```
+- It takes some effort and study to grok these more abstract types for people coming from languages like Java, C++, and especially Python and Ruby (being dynamically typed languages).  Abstract types that build on the concepts of functors, monoids, monads, arrows, and the like challenge traditional programmers to step-up their comprehension of the patterns that occur in programming to a much more abstract level.  I set out to write a short article on this topic, but after some discussions with people on the team and other programmers in my circle of friends and acquaintences, I decided to take a more lengthy and detailed approach, recognizing that people seeing abstract datatypes for the first time were having a more difficulty than I had anticipated in wrapping their heads around how these types work.
