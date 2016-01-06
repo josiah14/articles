@@ -3403,3 +3403,16 @@ scala> for (
        ^
 ```
 - It takes some effort and study to grok these more abstract types for people coming from languages like Java, C++, and especially Python and Ruby (being dynamically typed languages).  Abstract types that build on the concepts of functors, monoids, monads, arrows, and the like challenge traditional programmers to step-up their comprehension of the patterns that occur in programming to a much more abstract level.  I set out to write a short article on this topic, but after some discussions with people on the team and other programmers in my circle of friends and acquaintences, I decided to take a more lengthy and detailed approach, recognizing that people seeing abstract datatypes for the first time were having a more difficulty than I had anticipated in wrapping their heads around how these types work.
+
+## References and Further Reading
+
+1. http://danielwestheide.com/scala/neophytes.html
+2. http://www.scala-lang.org/api/2.11.7/index.html#package
+3. http://www.scala-lang.org/files/archive/api/2.12.0-M1/#package
+4. https://wiki.haskell.org/Typeclassopedia
+5. http://alvinalexander.com/scala/using-scala-option-some-none-idiom-function-java-null
+6. https://hc.apache.org/httpcomponents-client-ga/
+7. http://www.mkyong.com/java/apache-httpclient-examples/
+8. https://github.com/debasishg/scala-redis
+9. http://mauricio.github.io/2014/02/17/scala-either-try-and-the-m-word.html
+
