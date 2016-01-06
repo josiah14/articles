@@ -1594,7 +1594,7 @@ imaginaryClient match {
 if (configCient.isSuccess && configClient.get.connected) configClient.get.destroy()
 ```
 
-I'm also going to steal an example from the (Neophyte's Guide to Scala)[http://danielwestheide.com/blog/2012/12/26/the-neophytes-guide-to-scala-part-6-error-handling-with-try.html] to illustrate an instance that you will probably encounter more often - needing to nest a `Try` constructor for handling an exception inside of the `map` lambda of another `Try` object.
+I'm also going to steal an example from the [Neophyte's Guide to Scala](http://danielwestheide.com/blog/2012/12/26/the-neophytes-guide-to-scala-part-6-error-handling-with-try.html) to illustrate an instance that you will probably encounter more often - needing to nest a `Try` constructor for handling an exception inside of the `map` lambda of another `Try` object.
 
 Here's the naive implementation that results in a triple-nested `Try`:
 
